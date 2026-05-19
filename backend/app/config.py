@@ -41,6 +41,19 @@ class Settings(BaseSettings):
     # Recycle connections before Supabase / PgBouncer idle timeout (typically 5 min).
     DB_POOL_RECYCLE: int = 1800
 
+    # ------------------------------------------------------------------ #
+    # Telegram
+    # ------------------------------------------------------------------ #
+    TELEGRAM_BOT_TOKEN: str = Field(
+        default="",
+        description="Bot token from BotFather. Required in production.",
+    )
+    # Random secret appended to the webhook URL path for lightweight auth.
+    TELEGRAM_WEBHOOK_SECRET: str = Field(
+        default="",
+        description="Secret token in the webhook URL path.",
+    )
+
     FRONTEND_ORIGIN: str = Field(
         default="http://localhost:5173",
         description="Comma-separated list of allowed CORS origins.",

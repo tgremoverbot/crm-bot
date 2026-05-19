@@ -6,10 +6,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routers import health, version
+from app.api.routers import telegram as telegram_router
 from app.config import Settings, get_settings
 from app.db.session import dispose_engine, get_engine
 from app.logging import configure_logging, get_logger
 from app.middleware import RequestIdMiddleware
+from app.telegram.bot import close_bot, get_dispatcher
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -21,9 +23,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(_: FastAPI):
         log.info("startup", extra={"env": settings.ENV, "version": settings.APP_VERSION})
         get_engine()
+        get_dispatcher()  # initialise singleton eagerly
         try:
             yield
         finally:
+            await close_bot()
             await dispose_engine()
             log.info("shutdown")
 
@@ -48,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(version.router)
+    app.include_router(telegram_router.router)
 
     return app
 

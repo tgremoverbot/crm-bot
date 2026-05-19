@@ -7,6 +7,8 @@ import os
 os.environ["ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ.setdefault("FRONTEND_ORIGIN", "http://localhost:5173")
+# Fake token with valid aiogram format: <int>:<35 alphanumeric chars>
+os.environ.setdefault("TELEGRAM_BOT_TOKEN", "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
 
 from collections.abc import AsyncIterator
 
@@ -34,6 +36,21 @@ def settings():
 @pytest.fixture(scope="session")
 def app(settings):
     return create_app(settings)
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def _create_app_tables(app):
+    """Create all tables on the app's global engine once per session.
+
+    Needed so the aiogram DbSessionMiddleware (which uses get_session_factory)
+    has a valid schema when webhook tests run through the HTTP layer.
+    """
+    from app.db.session import get_engine
+
+    engine = get_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
 
 
 @pytest_asyncio.fixture
