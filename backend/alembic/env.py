@@ -6,10 +6,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import get_settings
 from app.db.base import Base
+from app import models  # noqa: F401  # register all ORM models on Base.metadata
 
 config = context.config
 
@@ -17,8 +18,6 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-
 target_metadata = Base.metadata
 
 
@@ -47,17 +46,16 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_migrations_online() -> None:
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-        future=True,
-    )
+    # Build the engine directly from settings to avoid async_engine_from_config
+    # mis-detecting the driver through the alembic.ini config parser.
+    kwargs: dict = {"poolclass": pool.NullPool, "future": True}
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        kwargs["pool_pre_ping"] = settings.DB_POOL_PRE_PING
 
-    async with connectable.connect() as connection:
+    engine = create_async_engine(settings.DATABASE_URL, **kwargs)
+    async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
-
-    await connectable.dispose()
+    await engine.dispose()
 
 
 if context.is_offline_mode():

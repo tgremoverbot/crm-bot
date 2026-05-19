@@ -13,14 +13,15 @@ from app.config import Settings, get_settings
 
 def build_engine(settings: Settings | None = None):
     settings = settings or get_settings()
-    return create_async_engine(
-        settings.DATABASE_URL,
-        echo=settings.DB_ECHO,
-        pool_pre_ping=settings.DB_POOL_PRE_PING,
-        pool_size=settings.DB_POOL_SIZE,
-        max_overflow=settings.DB_MAX_OVERFLOW,
-        future=True,
-    )
+    kwargs: dict = {"echo": settings.DB_ECHO, "future": True}
+    # pool_size / max_overflow / pool_recycle only apply to QueuePool (Postgres).
+    # The SQLite dialect uses StaticPool and rejects those kwargs.
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        kwargs["pool_pre_ping"] = settings.DB_POOL_PRE_PING
+        kwargs["pool_size"] = settings.DB_POOL_SIZE
+        kwargs["max_overflow"] = settings.DB_MAX_OVERFLOW
+        kwargs["pool_recycle"] = settings.DB_POOL_RECYCLE
+    return create_async_engine(settings.DATABASE_URL, **kwargs)
 
 
 _engine = None
