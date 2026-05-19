@@ -64,6 +64,18 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60
 
+    # ------------------------------------------------------------------ #
+    # Internal scheduler
+    # ------------------------------------------------------------------ #
+    INTERNAL_API_KEY: str = Field(
+        default="",
+        description="Shared secret for the /internal/* endpoints.",
+    )
+    SCHEDULER_MAX_MESSAGES: int = Field(
+        default=100,
+        description="Max scheduled messages processed per scheduler run.",
+    )
+
     FRONTEND_ORIGIN: str = Field(
         default="http://localhost:5173",
         description="Comma-separated list of allowed CORS origins.",

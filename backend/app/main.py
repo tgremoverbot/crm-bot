@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routers import health, version
 from app.api.routers import auth as auth_router
+from app.api.routers import internal as internal_router
 from app.api.routers import telegram as telegram_router
 from app.api.routers.admin import router as admin_router
 from app.config import Settings, get_settings
@@ -56,6 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(version.router)
     app.include_router(auth_router.router)
     app.include_router(admin_router)
+    app.include_router(internal_router.router)
     app.include_router(telegram_router.router)
 
     return app

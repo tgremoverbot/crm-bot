@@ -37,6 +37,7 @@ async def create_campaign(
         slug=body.slug,
         description=body.description,
         is_active=body.is_active,
+        default_sequence_id=body.default_sequence_id,
     )
     return CampaignOut.model_validate(campaign)
 

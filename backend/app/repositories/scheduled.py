@@ -45,13 +45,18 @@ async def list_due(
     *,
     now: datetime | None = None,
     limit: int = 100,
+    max_attempts: int = 3,
 ) -> Sequence[ScheduledMessage]:
+    """Return pending messages and retryable failed messages that are due."""
     now = now or datetime.now(timezone.utc)
     stmt = (
         select(ScheduledMessage)
         .where(
-            ScheduledMessage.status == ScheduledMessageStatus.PENDING,
+            ScheduledMessage.status.in_(
+                [ScheduledMessageStatus.PENDING, ScheduledMessageStatus.FAILED]
+            ),
             ScheduledMessage.scheduled_at <= now,
+            ScheduledMessage.attempts < max_attempts,
         )
         .order_by(ScheduledMessage.scheduled_at.asc())
         .limit(limit)

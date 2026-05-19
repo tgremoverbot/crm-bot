@@ -8,7 +8,9 @@ from app.models.campaign import Campaign
 from app.models.user import User
 from app.repositories import campaigns as campaign_repo
 from app.repositories import events as event_repo
+from app.repositories import sequences as seq_repo
 from app.repositories import users as user_repo
+from app.services.automation import enroll_user_in_sequence
 
 
 async def handle_start(
@@ -69,6 +71,11 @@ async def handle_start(
                 "campaign_id": str(campaign.id) if campaign else None,
             },
         )
+
+    if campaign and campaign.default_sequence_id and is_new:
+        sequence = await seq_repo.get_by_id(session, campaign.default_sequence_id)
+        if sequence and sequence.is_active:
+            await enroll_user_in_sequence(session, user, sequence)
 
     return user, is_new, campaign
 

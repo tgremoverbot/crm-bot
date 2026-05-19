@@ -9,6 +9,7 @@ os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ.setdefault("FRONTEND_ORIGIN", "http://localhost:5173")
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
 os.environ.setdefault("JWT_SECRET", "test-only-jwt-secret-key-32-chars-padding!!")
+os.environ.setdefault("INTERNAL_API_KEY", "test-internal-key-abc123")
 
 from collections.abc import AsyncIterator
 

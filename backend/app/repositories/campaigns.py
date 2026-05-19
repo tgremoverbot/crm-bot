@@ -34,9 +34,14 @@ async def create(
     slug: str,
     description: str | None = None,
     is_active: bool = True,
+    default_sequence_id: uuid.UUID | None = None,
 ) -> Campaign:
     campaign = Campaign(
-        name=name, slug=slug, description=description, is_active=is_active
+        name=name,
+        slug=slug,
+        description=description,
+        is_active=is_active,
+        default_sequence_id=default_sequence_id,
     )
     session.add(campaign)
     await session.flush()

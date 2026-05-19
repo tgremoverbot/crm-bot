@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import Boolean, String
+import uuid
+
+from sqlalchemy import Boolean, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -15,4 +17,9 @@ class Campaign(UuidPkMixin, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
+    )
+    default_sequence_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(),
+        ForeignKey("sequences.id", ondelete="SET NULL"),
+        nullable=True,
     )
