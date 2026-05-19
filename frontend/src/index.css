@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: #07100c;
+    color: #dff5ea;
+    font-family: 'Outfit', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #1a2e24 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #1a2e24;
+    border-radius: 3px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #10b981;
+  }
+}
+
+@layer components {
+  .input-field {
+    @apply w-full bg-[#0a1610] border border-[#1a2e24] rounded-lg px-3 py-2 text-[#dff5ea]
+           placeholder-[#3d6b52] text-sm
+           focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500
+           transition-colors;
+  }
+
+  .btn-primary {
+    @apply bg-brand-500 hover:bg-brand-600 text-white font-medium px-4 py-2 rounded-lg
+           text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+           flex items-center gap-2;
+  }
+
+  .btn-secondary {
+    @apply bg-[#111c17] hover:bg-[#162520] text-[#dff5ea] font-medium px-4 py-2 rounded-lg
+           text-sm border border-[#1a2e24] transition-colors
+           flex items-center gap-2;
+  }
+
+  .btn-danger {
+    @apply bg-red-900/40 hover:bg-red-900/60 text-red-400 font-medium px-4 py-2 rounded-lg
+           text-sm border border-red-900/50 transition-colors
+           flex items-center gap-2;
+  }
+
+  .card {
+    @apply bg-[#0f1a14] border border-[#1a2e24] rounded-xl;
+  }
+
+  .table-row {
+    @apply border-b border-[#1a2e24] hover:bg-[#111c17] transition-colors;
+  }
+
+  .label {
+    @apply block text-xs font-medium text-[#52806a] uppercase tracking-wider mb-1.5;
+  }
+}
