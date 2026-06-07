@@ -1,29 +1,24 @@
 from __future__ import annotations
 
+from collections import defaultdict
+from collections.abc import Sequence
+
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
-MENU_BUTTONS = {
-    "📚 Foydali materiallar": "materials",
-    "🎥 YouTube darsliklar": "youtube",
-    "📄 PDF qo'llanmalar": "pdf",
-    "ℹ️ Kurs haqida": "about",
-    "❓ Savol yuborish": "question",
-}
+from app.models.menu_button import MenuButton
 
 
-def main_menu() -> ReplyKeyboardMarkup:
+def build_menu(buttons: Sequence[MenuButton]) -> ReplyKeyboardMarkup:
+    """Build a ReplyKeyboardMarkup from a list of MenuButton rows."""
+    rows: dict[int, list[KeyboardButton]] = defaultdict(list)
+    for btn in sorted(buttons, key=lambda b: (b.row, b.position)):
+        rows[btn.row].append(KeyboardButton(text=btn.label))
+
+    if not rows:
+        return ReplyKeyboardMarkup(keyboard=[], resize_keyboard=True)
+
     return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="📚 Foydali materiallar"),
-                KeyboardButton(text="🎥 YouTube darsliklar"),
-            ],
-            [
-                KeyboardButton(text="📄 PDF qo'llanmalar"),
-                KeyboardButton(text="ℹ️ Kurs haqida"),
-            ],
-            [KeyboardButton(text="❓ Savol yuborish")],
-        ],
+        keyboard=[rows[r] for r in sorted(rows)],
         resize_keyboard=True,
         one_time_keyboard=False,
     )

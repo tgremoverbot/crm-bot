@@ -1,3 +1,16 @@
+export interface MenuButton {
+  id: string;
+  label: string;
+  row: number;
+  position: number;
+  action_kind: 'text' | 'material';
+  action_material_id: string | null;
+  action_text: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AdminUser {
   id: string;
   email: string;

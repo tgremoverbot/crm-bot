@@ -9,13 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models.enums import MaterialKind, ParseMode
-from app.telegram.keyboards import MENU_BUTTONS, main_menu
+from app.telegram.keyboards import build_menu
 from app.telegram.service import handle_start, handle_stop
 
 router = Router(name="main")
 
 # In-memory set of Telegram IDs that have unlocked admin bot mode.
-# Cleared on bot restart — teacher re-authenticates with /admin <password>.
 _admin_sessions: set[int] = set()
 
 
@@ -35,35 +34,12 @@ _STOP_TEXT = (
 
 _SETTINGS_TEXT = "⚙️ Sozlamalar (tez orada qo'shiladi)."
 
-_MENU_RESPONSES: dict[str, str] = {
-    "materials": (
-        "📚 *Foydali materiallar*\n\n"
-        "Darslik va qo'llanmalar tez orada qo'shiladi."
-    ),
-    "youtube": (
-        "🎥 *YouTube darsliklar*\n\n"
-        "Video darsliklar tez orada qo'shiladi."
-    ),
-    "pdf": (
-        "📄 *PDF qo'llanmalar*\n\n"
-        "PDF fayllar tez orada qo'shiladi."
-    ),
-    "about": (
-        "ℹ️ *Kurs haqida*\n\n"
-        "Kurs tafsilotlari tez orada qo'shiladi."
-    ),
-    "question": (
-        "❓ *Savol yuborish*\n\n"
-        "Savolingizni yozing, tez orada javob beramiz."
-    ),
-}
-
 
 @router.message(CommandStart())
 async def cmd_start(
     message: Message, command: CommandObject, session: AsyncSession
 ) -> None:
-    payload = command.args  # text after /start, or None
+    payload = command.args
     tg = message.from_user
 
     user, _, campaign = await handle_start(
@@ -77,7 +53,9 @@ async def cmd_start(
         campaign_slug=payload or None,
     )
     if not payload:
-        await message.answer(_WELCOME, reply_markup=main_menu())
+        from app.repositories import menu_buttons as menu_repo
+        buttons = await menu_repo.list_active(session)
+        await message.answer(_WELCOME, reply_markup=build_menu(buttons))
 
     if campaign:
         from app.services import scheduler as scheduler_service
@@ -94,29 +72,6 @@ async def cmd_stop(message: Message, session: AsyncSession) -> None:
 @router.message(Command("settings"))
 async def cmd_settings(message: Message) -> None:
     await message.answer(_SETTINGS_TEXT)
-
-
-@router.message(F.text.in_(MENU_BUTTONS.keys()))
-async def handle_menu_button(message: Message, session: AsyncSession) -> None:
-    key = MENU_BUTTONS[message.text]
-    user = await _get_or_none(session, message.from_user.id)
-    user_id = user.id if user else None
-
-    from app.repositories import events as event_repo
-
-    await event_repo.log(
-        session,
-        type="menu_clicked",
-        user_id=user_id,
-        payload={"button": message.text, "key": key},
-    )
-    text = _MENU_RESPONSES.get(key, "Tez orada qo'shiladi.")
-    await message.answer(text, parse_mode="Markdown")
-
-
-async def _get_or_none(session, telegram_id: int):
-    from app.repositories import users as user_repo
-    return await user_repo.get_by_telegram_id(session, telegram_id)
 
 
 @router.message(Command("admin"))
@@ -151,7 +106,6 @@ async def cmd_admin(message: Message, command: CommandObject, state: FSMContext)
 
 
 def _extract_content(message: Message) -> tuple[MaterialKind, str | None, str | None] | None:
-    """Return (kind, body/caption, file_id) or None if unsupported."""
     if message.photo:
         return MaterialKind.PHOTO, message.caption, message.photo[-1].file_id
     if message.video:
@@ -212,3 +166,39 @@ async def admin_receive_content(message: Message, state: FSMContext) -> None:
         f"\\(e\\.g\\. _Welcome_, _Week 1 lesson_\\)",
         parse_mode="MarkdownV2",
     )
+
+
+@router.message(F.text)
+async def handle_menu_button(message: Message, session: AsyncSession) -> None:
+    """Catch-all text handler — dispatch if the text matches an active menu button."""
+    from app.repositories import menu_buttons as menu_repo
+    from app.repositories import events as event_repo
+    from app.repositories import materials as material_repo
+    from app.services.sender import send_material
+
+    button = await menu_repo.get_by_label(session, message.text)
+    if button is None:
+        return
+
+    user = await _get_or_none(session, message.from_user.id)
+    await event_repo.log(
+        session,
+        type="menu_clicked",
+        user_id=user.id if user else None,
+        payload={"button": message.text, "action_kind": button.action_kind},
+    )
+
+    if button.action_kind == "material" and button.action_material_id:
+        material = await material_repo.get_by_id(session, button.action_material_id)
+        if material:
+            from app.telegram.bot import get_bot
+            await send_material(get_bot(), message.chat.id, material)
+            return
+
+    if button.action_text:
+        await message.answer(button.action_text)
+
+
+async def _get_or_none(session, telegram_id: int):
+    from app.repositories import users as user_repo
+    return await user_repo.get_by_telegram_id(session, telegram_id)

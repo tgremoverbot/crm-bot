@@ -13,6 +13,8 @@ import SequenceForm from './pages/SequenceForm';
 import Broadcasts from './pages/Broadcasts';
 import BroadcastCreate from './pages/BroadcastCreate';
 import BroadcastEdit from './pages/BroadcastEdit';
+import MenuButtons from './pages/MenuButtons';
+import MenuButtonForm from './pages/MenuButtonForm';
 
 function ProtectedRoute() {
   const { isAuthenticated } = useAuth();
@@ -43,6 +45,9 @@ const router = createHashRouter([
           { path: '/broadcasts', element: <Broadcasts /> },
           { path: '/broadcasts/new', element: <BroadcastCreate /> },
           { path: '/broadcasts/:id/edit', element: <BroadcastEdit /> },
+          { path: '/menu-buttons', element: <MenuButtons /> },
+          { path: '/menu-buttons/new', element: <MenuButtonForm /> },
+          { path: '/menu-buttons/:id/edit', element: <MenuButtonForm /> },
         ],
       },
     ],
