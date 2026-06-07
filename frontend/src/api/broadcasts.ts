@@ -17,6 +17,8 @@ export const broadcastApi = {
     http.post<{ recipient_count: number }>('/api/admin/broadcasts/preview', {
       segment_id: segment_id ?? null,
     }),
+  update: (id: string, data: BroadcastPayload) =>
+    http.patch<Broadcast>(`/api/admin/broadcasts/${id}`, data),
   send: (id: string, scheduled_at?: string | null) =>
     http.post<Broadcast>(`/api/admin/broadcasts/${id}/send`, {
       scheduled_at: scheduled_at ?? null,

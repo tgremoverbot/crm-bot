@@ -12,6 +12,7 @@ import Sequences from './pages/Sequences';
 import SequenceForm from './pages/SequenceForm';
 import Broadcasts from './pages/Broadcasts';
 import BroadcastCreate from './pages/BroadcastCreate';
+import BroadcastEdit from './pages/BroadcastEdit';
 
 function ProtectedRoute() {
   const { isAuthenticated } = useAuth();
@@ -41,6 +42,7 @@ const router = createHashRouter([
           { path: '/sequences/:id/edit', element: <SequenceForm /> },
           { path: '/broadcasts', element: <Broadcasts /> },
           { path: '/broadcasts/new', element: <BroadcastCreate /> },
+          { path: '/broadcasts/:id/edit', element: <BroadcastEdit /> },
         ],
       },
     ],

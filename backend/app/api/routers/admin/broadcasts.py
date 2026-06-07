@@ -47,6 +47,30 @@ async def create_broadcast(
     return BroadcastOut.model_validate(bc)
 
 
+@router.patch("/{broadcast_id}", response_model=BroadcastOut)
+async def update_broadcast(
+    broadcast_id: UUID,
+    body: BroadcastCreate,
+    session: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+) -> BroadcastOut:
+    bc = await broadcast_repo.get_by_id(session, broadcast_id)
+    if not bc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Broadcast not found")
+    if bc.status != BroadcastStatus.DRAFT:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Cannot edit a broadcast in status '{bc.status.value}'",
+        )
+    bc.name = body.name
+    bc.material_id = body.material_id
+    bc.segment_id = body.segment_id
+    bc.scheduled_at = body.scheduled_at
+    await session.flush()
+    await session.refresh(bc)
+    return BroadcastOut.model_validate(bc)
+
+
 @router.post("/{broadcast_id}/send", response_model=BroadcastOut)
 async def schedule_broadcast(
     broadcast_id: UUID,

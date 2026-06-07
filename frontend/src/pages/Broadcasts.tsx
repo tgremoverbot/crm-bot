@@ -8,7 +8,7 @@ import ErrorState from '../components/ErrorState';
 import EmptyState from '../components/EmptyState';
 import Badge from '../components/Badge';
 import ConfirmModal from '../components/ConfirmModal';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 import type { Broadcast } from '../types';
 
 const statusVariant: Record<Broadcast['status'], 'gray' | 'yellow' | 'green' | 'red' | 'blue'> = {
@@ -83,14 +83,24 @@ export default function Broadcasts() {
                   </td>
                   <td className="px-4 py-3 text-[#4a7060]">{new Date(b.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    {deletableStatuses.includes(b.status) && (
-                      <button
-                        onClick={() => setDeleteId(b.id)}
-                        className="p-1.5 rounded hover:bg-red-900/20 text-[#4a7060] hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 justify-end">
+                      {b.status === 'draft' && (
+                        <Link
+                          to={`/broadcasts/${b.id}/edit`}
+                          className="p-1.5 rounded hover:bg-[#1a2e24] text-[#4a7060] hover:text-brand-400 transition-colors"
+                        >
+                          <Pencil size={14} />
+                        </Link>
+                      )}
+                      {deletableStatuses.includes(b.status) && (
+                        <button
+                          onClick={() => setDeleteId(b.id)}
+                          className="p-1.5 rounded hover:bg-red-900/20 text-[#4a7060] hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
