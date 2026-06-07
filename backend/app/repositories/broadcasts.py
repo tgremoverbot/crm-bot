@@ -105,3 +105,42 @@ async def list_deliveries(
         BroadcastDelivery.broadcast_id == broadcast_id
     )
     return (await session.execute(stmt)).scalars().all()
+
+
+async def list_due(
+    session: AsyncSession, *, now: datetime | None = None
+) -> Sequence[Broadcast]:
+    """Return SCHEDULED broadcasts whose send time has arrived."""
+    from datetime import timezone
+
+    now = now or datetime.now(timezone.utc)
+    stmt = select(Broadcast).where(
+        Broadcast.status == BroadcastStatus.SCHEDULED,
+        (Broadcast.scheduled_at.is_(None)) | (Broadcast.scheduled_at <= now),
+    )
+    return (await session.execute(stmt)).scalars().all()
+
+
+async def get_recipients(
+    session: AsyncSession, segment_id: uuid.UUID | None
+):
+    """Return all non-blocked User objects for this broadcast's audience."""
+    from app.models.segment import UserSegment
+    from app.models.user import User
+
+    if segment_id is None:
+        return (
+            await session.execute(
+                select(User).where(User.is_blocked.is_(False))
+            )
+        ).scalars().all()
+    return (
+        await session.execute(
+            select(User)
+            .join(UserSegment, User.id == UserSegment.user_id)
+            .where(
+                UserSegment.segment_id == segment_id,
+                User.is_blocked.is_(False),
+            )
+        )
+    ).scalars().all()

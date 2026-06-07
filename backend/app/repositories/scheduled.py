@@ -40,6 +40,30 @@ async def create(
     return msg
 
 
+async def list_due_for_user(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    now: datetime | None = None,
+    max_attempts: int = 3,
+) -> Sequence[ScheduledMessage]:
+    """Return due messages for a single user (used for immediate delivery)."""
+    now = now or datetime.now(timezone.utc)
+    stmt = (
+        select(ScheduledMessage)
+        .where(
+            ScheduledMessage.user_id == user_id,
+            ScheduledMessage.status.in_(
+                [ScheduledMessageStatus.PENDING, ScheduledMessageStatus.FAILED]
+            ),
+            ScheduledMessage.scheduled_at <= now,
+            ScheduledMessage.attempts < max_attempts,
+        )
+        .order_by(ScheduledMessage.scheduled_at.asc())
+    )
+    return (await session.execute(stmt)).scalars().all()
+
+
 async def list_due(
     session: AsyncSession,
     *,

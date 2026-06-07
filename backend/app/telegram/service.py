@@ -72,7 +72,7 @@ async def handle_start(
             },
         )
 
-    if campaign and campaign.default_sequence_id and is_new:
+    if campaign and campaign.default_sequence_id:
         sequence = await seq_repo.get_by_id(session, campaign.default_sequence_id)
         if sequence and sequence.is_active:
             await enroll_user_in_sequence(session, user, sequence)

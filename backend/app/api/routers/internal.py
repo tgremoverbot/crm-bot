@@ -26,9 +26,17 @@ async def process_scheduled(
     _: None = Depends(_verify_key),
 ) -> dict:
     bot = get_bot()
-    return await scheduler_service.process_due_messages(
+    messages_result = await scheduler_service.process_due_messages(
         session,
         bot,
         limit=get_settings().SCHEDULER_MAX_MESSAGES,
         dry_run=dry_run,
     )
+    if not dry_run:
+        broadcasts_result = await scheduler_service.process_due_broadcasts(session, bot)
+    else:
+        broadcasts_result = {"processed": 0, "recipients_sent": 0, "recipients_failed": 0}
+    return {
+        "messages": messages_result,
+        "broadcasts": broadcasts_result,
+    }

@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.models.enums import MaterialKind, ParseMode
 from app.telegram.keyboards import MENU_BUTTONS, main_menu
 from app.telegram.service import handle_start, handle_stop
 
@@ -14,6 +17,10 @@ router = Router(name="main")
 # In-memory set of Telegram IDs that have unlocked admin bot mode.
 # Cleared on bot restart — teacher re-authenticates with /admin <password>.
 _admin_sessions: set[int] = set()
+
+
+class SaveMessage(StatesGroup):
+    waiting_for_name = State()
 
 _WELCOME = (
     "Assalomu alaykum! 👋\n\n"
@@ -59,7 +66,7 @@ async def cmd_start(
     payload = command.args  # text after /start, or None
     tg = message.from_user
 
-    await handle_start(
+    user, _, campaign = await handle_start(
         session,
         telegram_id=tg.id,
         chat_id=message.chat.id,
@@ -69,7 +76,13 @@ async def cmd_start(
         language_code=tg.language_code,
         campaign_slug=payload or None,
     )
-    await message.answer(_WELCOME, reply_markup=main_menu())
+    if not payload:
+        await message.answer(_WELCOME, reply_markup=main_menu())
+
+    if campaign:
+        from app.services import scheduler as scheduler_service
+        from app.telegram.bot import get_bot
+        await scheduler_service.flush_user(session, get_bot(), user.id)
 
 
 @router.message(Command("stop"))
@@ -107,7 +120,7 @@ async def _get_or_none(session, telegram_id: int):
 
 
 @router.message(Command("admin"))
-async def cmd_admin(message: Message, command: CommandObject) -> None:
+async def cmd_admin(message: Message, command: CommandObject, state: FSMContext) -> None:
     settings = get_settings()
     tid = message.from_user.id
 
@@ -119,17 +132,16 @@ async def cmd_admin(message: Message, command: CommandObject) -> None:
 
     if arg == "logout":
         _admin_sessions.discard(tid)
+        await state.clear()
         await message.answer("✅ Logged out of admin mode.")
         return
 
-    if arg == settings.ADMIN_BOT_PASSWORD:
+    if arg == settings.ADMIN_BOT_PASSWORD.strip():
         _admin_sessions.add(tid)
         await message.answer(
             "✅ *Admin mode active.*\n\n"
             "Send me any message — photo, video, document, or text — "
-            "and I'll reply with its Telegram file ID.\n\n"
-            "Paste that ID into the admin panel under:\n"
-            "*Messages → New Message → Advanced: use existing file ID*\n\n"
+            "and I'll ask you what to call it, then save it so you can use it in Auto-flows.\n\n"
             "Send /admin logout to exit.",
             parse_mode="Markdown",
         )
@@ -138,28 +150,65 @@ async def cmd_admin(message: Message, command: CommandObject) -> None:
     await message.answer("❌ Wrong password.")
 
 
-@router.message(F.from_user.func(lambda u: u.id in _admin_sessions))
-async def admin_file_id(message: Message) -> None:
-    lines: list[str] = []
-
+def _extract_content(message: Message) -> tuple[MaterialKind, str | None, str | None] | None:
+    """Return (kind, body/caption, file_id) or None if unsupported."""
     if message.photo:
-        file_id = message.photo[-1].file_id
-        lines.append(f"📷 *Kind:* photo")
-        lines.append(f"`{file_id}`")
-    elif message.video:
-        lines.append(f"🎥 *Kind:* video")
-        lines.append(f"`{message.video.file_id}`")
-    elif message.document:
-        lines.append(f"📄 *Kind:* document (file)")
-        lines.append(f"`{message.document.file_id}`")
-    elif message.text:
-        lines.append("📝 *Kind:* text")
-        lines.append("Copy the message text above and paste it into the *Message text* field.")
-        await message.answer("\n".join(lines), parse_mode="Markdown")
-        return
-    else:
-        await message.answer("⚠️ Unsupported message type. Send a photo, video, document, or text.")
+        return MaterialKind.PHOTO, message.caption, message.photo[-1].file_id
+    if message.video:
+        return MaterialKind.VIDEO, message.caption, message.video.file_id
+    if message.document:
+        return MaterialKind.DOCUMENT, message.caption, message.document.file_id
+    if message.text:
+        return MaterialKind.TEXT, message.text, None
+    return None
+
+
+@router.message(F.from_user.func(lambda u: u.id in _admin_sessions), SaveMessage.waiting_for_name)
+async def admin_receive_name(message: Message, state: FSMContext, session: AsyncSession) -> None:
+    name = (message.text or "").strip()
+    if not name:
+        await message.answer("Please send a name for this message.")
         return
 
-    lines.append("\nPaste this into *Messages → New Message → Advanced: use existing file ID*.")
-    await message.answer("\n".join(lines), parse_mode="Markdown")
+    data = await state.get_data()
+    kind = MaterialKind(data["kind"])
+    body = data.get("body")
+    file_id = data.get("file_id")
+
+    from app.repositories import materials as material_repo
+    material = await material_repo.create(
+        session,
+        name=name,
+        kind=kind,
+        body=body,
+        file_id=file_id,
+        parse_mode=ParseMode.NONE,
+    )
+    await session.commit()
+    await state.clear()
+
+    kind_label = {"text": "Text", "photo": "Photo", "video": "Video", "document": "File"}.get(kind.value, kind.value)
+    await message.answer(
+        f"✅ *{name}* saved as a {kind_label} message\\.\n\n"
+        f"You can now find it in *Messages* in the admin panel and add it to any Auto\\-flow\\.",
+        parse_mode="MarkdownV2",
+    )
+
+
+@router.message(F.from_user.func(lambda u: u.id in _admin_sessions))
+async def admin_receive_content(message: Message, state: FSMContext) -> None:
+    content = _extract_content(message)
+    if content is None:
+        await message.answer("⚠️ Unsupported type. Send a photo, video, document, or text message.")
+        return
+
+    kind, body, file_id = content
+    await state.set_state(SaveMessage.waiting_for_name)
+    await state.update_data(kind=kind.value, body=body, file_id=file_id)
+
+    kind_label = {"text": "Text", "photo": "Photo", "video": "Video", "document": "File"}.get(kind.value, kind.value)
+    await message.answer(
+        f"Got it — *{kind_label}* message\\.\n\nWhat do you want to call this message? "
+        f"\\(e\\.g\\. _Welcome_, _Week 1 lesson_\\)",
+        parse_mode="MarkdownV2",
+    )
