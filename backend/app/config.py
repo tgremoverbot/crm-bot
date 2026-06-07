@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 60
 
     # ------------------------------------------------------------------ #
+    # Telegram admin bot mode
+    # ------------------------------------------------------------------ #
+    ADMIN_BOT_PASSWORD: str = Field(
+        default="",
+        description="Password the teacher sends via /admin <password> to unlock file-ID mode.",
+    )
+
+    # ------------------------------------------------------------------ #
     # Internal scheduler
     # ------------------------------------------------------------------ #
     INTERNAL_API_KEY: str = Field(

@@ -5,10 +5,15 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.telegram.keyboards import MENU_BUTTONS, main_menu
 from app.telegram.service import handle_start, handle_stop
 
 router = Router(name="main")
+
+# In-memory set of Telegram IDs that have unlocked admin bot mode.
+# Cleared on bot restart — teacher re-authenticates with /admin <password>.
+_admin_sessions: set[int] = set()
 
 _WELCOME = (
     "Assalomu alaykum! 👋\n\n"
@@ -99,3 +104,62 @@ async def handle_menu_button(message: Message, session: AsyncSession) -> None:
 async def _get_or_none(session, telegram_id: int):
     from app.repositories import users as user_repo
     return await user_repo.get_by_telegram_id(session, telegram_id)
+
+
+@router.message(Command("admin"))
+async def cmd_admin(message: Message, command: CommandObject) -> None:
+    settings = get_settings()
+    tid = message.from_user.id
+
+    if not settings.ADMIN_BOT_PASSWORD:
+        await message.answer("⚠️ Admin bot mode is not configured.")
+        return
+
+    arg = (command.args or "").strip()
+
+    if arg == "logout":
+        _admin_sessions.discard(tid)
+        await message.answer("✅ Logged out of admin mode.")
+        return
+
+    if arg == settings.ADMIN_BOT_PASSWORD:
+        _admin_sessions.add(tid)
+        await message.answer(
+            "✅ *Admin mode active.*\n\n"
+            "Send me any message — photo, video, document, or text — "
+            "and I'll reply with its Telegram file ID.\n\n"
+            "Paste that ID into the admin panel under:\n"
+            "*Messages → New Message → Advanced: use existing file ID*\n\n"
+            "Send /admin logout to exit.",
+            parse_mode="Markdown",
+        )
+        return
+
+    await message.answer("❌ Wrong password.")
+
+
+@router.message(F.from_user.func(lambda u: u.id in _admin_sessions))
+async def admin_file_id(message: Message) -> None:
+    lines: list[str] = []
+
+    if message.photo:
+        file_id = message.photo[-1].file_id
+        lines.append(f"📷 *Kind:* photo")
+        lines.append(f"`{file_id}`")
+    elif message.video:
+        lines.append(f"🎥 *Kind:* video")
+        lines.append(f"`{message.video.file_id}`")
+    elif message.document:
+        lines.append(f"📄 *Kind:* document (file)")
+        lines.append(f"`{message.document.file_id}`")
+    elif message.text:
+        lines.append("📝 *Kind:* text")
+        lines.append("Copy the message text above and paste it into the *Message text* field.")
+        await message.answer("\n".join(lines), parse_mode="Markdown")
+        return
+    else:
+        await message.answer("⚠️ Unsupported message type. Send a photo, video, document, or text.")
+        return
+
+    lines.append("\nPaste this into *Messages → New Message → Advanced: use existing file ID*.")
+    await message.answer("\n".join(lines), parse_mode="Markdown")
