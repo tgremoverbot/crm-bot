@@ -105,3 +105,8 @@ async def test_stats_returns_data(auth_client: AsyncClient, admin_user):
     assert "sequences" in data
     assert "broadcasts" in data
     assert "scheduled" in data
+    assert "growth" in data
+    assert "funnels" in data
+    assert "delivery" in data
+    assert "blocked" in data["users"]
+    assert "recent" in data["broadcasts"]
