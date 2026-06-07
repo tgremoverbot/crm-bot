@@ -20,7 +20,7 @@ export default function Sequences() {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => sequenceApi.update(id, { is_active: false }),
+    mutationFn: (id: string) => sequenceApi.remove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['sequences'] }); setDeleteId(null); },
   });
 
@@ -85,9 +85,9 @@ export default function Sequences() {
 
       {deleteId && (
         <ConfirmModal
-          title="Deactivate sequence?"
-          message="This will deactivate the sequence. Existing scheduled messages will still be sent."
-          confirmLabel="Deactivate"
+          title="Delete auto-flow?"
+          message="This will permanently delete the auto-flow. Existing scheduled messages will still be sent."
+          confirmLabel="Delete"
           danger
           onConfirm={() => remove.mutate(deleteId)}
           onCancel={() => setDeleteId(null)}

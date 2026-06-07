@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { broadcastApi } from '../api/broadcasts';
 import PageHeader from '../components/PageHeader';
@@ -6,7 +7,8 @@ import LoadingState from '../components/LoadingState';
 import ErrorState from '../components/ErrorState';
 import EmptyState from '../components/EmptyState';
 import Badge from '../components/Badge';
-import { Plus } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
+import { Plus, Trash2 } from 'lucide-react';
 import type { Broadcast } from '../types';
 
 const statusVariant: Record<Broadcast['status'], 'gray' | 'yellow' | 'green' | 'red' | 'blue'> = {
@@ -18,10 +20,20 @@ const statusVariant: Record<Broadcast['status'], 'gray' | 'yellow' | 'green' | '
   failed: 'red',
 };
 
+const deletableStatuses: Broadcast['status'][] = ['draft', 'scheduled', 'failed'];
+
 export default function Broadcasts() {
+  const qc = useQueryClient();
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['broadcasts'],
     queryFn: broadcastApi.list,
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => broadcastApi.remove(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['broadcasts'] }); setDeleteId(null); },
   });
 
   return (
@@ -53,6 +65,7 @@ export default function Broadcasts() {
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Recipients</th>
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Scheduled</th>
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Created</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -69,11 +82,31 @@ export default function Broadcasts() {
                     {b.scheduled_at ? new Date(b.scheduled_at).toLocaleString() : '—'}
                   </td>
                   <td className="px-4 py-3 text-[#4a7060]">{new Date(b.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-3">
+                    {deletableStatuses.includes(b.status) && (
+                      <button
+                        onClick={() => setDeleteId(b.id)}
+                        className="p-1.5 rounded hover:bg-red-900/20 text-[#4a7060] hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {deleteId && (
+        <ConfirmModal
+          title="Delete broadcast?"
+          message="This will permanently delete the broadcast."
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => remove.mutate(deleteId)}
+          onCancel={() => setDeleteId(null)}
+        />
       )}
     </div>
   );

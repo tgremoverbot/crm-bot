@@ -22,6 +22,8 @@ export const sequenceApi = {
   update: (id: string, data: Partial<SequencePayload>) =>
     http.patch<Sequence>(`/api/admin/sequences/${id}`, data),
 
+  remove: (id: string) => http.delete(`/api/admin/sequences/${id}`),
+
   listSteps: (id: string) =>
     http.get<SequenceStep[]>(`/api/admin/sequences/${id}/steps`),
   addStep: (id: string, data: StepPayload) =>

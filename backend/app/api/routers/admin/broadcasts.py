@@ -65,6 +65,7 @@ async def schedule_broadcast(
     if body.scheduled_at is not None:
         bc.scheduled_at = body.scheduled_at
     await broadcast_repo.set_status(session, bc, BroadcastStatus.SCHEDULED)
+    await session.refresh(bc)
     return BroadcastOut.model_validate(bc)
 
 
@@ -87,3 +88,20 @@ async def get_broadcast(
     if not bc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Broadcast not found")
     return BroadcastOut.model_validate(bc)
+
+
+@router.delete("/{broadcast_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_broadcast(
+    broadcast_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+) -> None:
+    bc = await broadcast_repo.get_by_id(session, broadcast_id)
+    if not bc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Broadcast not found")
+    if bc.status not in (BroadcastStatus.DRAFT, BroadcastStatus.SCHEDULED, BroadcastStatus.FAILED):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Cannot delete a broadcast with status '{bc.status.value}'",
+        )
+    await session.delete(bc)

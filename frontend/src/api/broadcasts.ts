@@ -21,4 +21,5 @@ export const broadcastApi = {
     http.post<Broadcast>(`/api/admin/broadcasts/${id}/send`, {
       scheduled_at: scheduled_at ?? null,
     }),
+  remove: (id: string) => http.delete(`/api/admin/broadcasts/${id}`),
 };

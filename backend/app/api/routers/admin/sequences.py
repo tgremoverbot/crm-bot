@@ -100,3 +100,15 @@ async def add_step(
         material_id=body.material_id,
     )
     return SequenceStepOut.model_validate(step)
+
+
+@router.delete("/{sequence_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_sequence(
+    sequence_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+) -> None:
+    seq = await seq_repo.get_by_id(session, sequence_id)
+    if not seq:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Sequence not found")
+    await session.delete(seq)
