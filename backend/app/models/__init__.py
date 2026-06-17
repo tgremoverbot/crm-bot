@@ -17,6 +17,7 @@ from app.models.enums import (
 )
 from app.models.event_log import EventLog
 from app.models.material import Material
+from app.models.menu_button import MenuButton
 from app.models.scheduled_message import ScheduledMessage
 from app.models.segment import Segment, UserSegment
 from app.models.sequence import Sequence, SequenceStep
@@ -32,6 +33,7 @@ __all__ = [
     "EventLog",
     "Material",
     "MaterialKind",
+    "MenuButton",
     "ParseMode",
     "ScheduledMessage",
     "ScheduledMessageStatus",

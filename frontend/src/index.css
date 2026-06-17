@@ -12,6 +12,25 @@
     color: #dff5ea;
     font-family: 'Outfit', sans-serif;
     -webkit-font-smoothing: antialiased;
+    /* Disable text selection across the app */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  /* Allow selection only in form inputs */
+  input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    user-select: text;
+  }
+
+  /* Hide content from print / Ctrl+P */
+  @media print {
+    body * {
+      visibility: hidden !important;
+    }
   }
 
   * {
