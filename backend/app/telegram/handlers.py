@@ -40,7 +40,7 @@ async def cmd_start(
     payload = command.args
     tg = message.from_user
 
-    user, _, campaign = await handle_start(
+    user, _, _campaign = await handle_start(
         session,
         telegram_id=tg.id,
         chat_id=message.chat.id,
@@ -53,10 +53,11 @@ async def cmd_start(
     if not payload:
         await message.answer(_WELCOME, reply_markup=ReplyKeyboardRemove())
 
-    if campaign:
-        from app.services import scheduler as scheduler_service
-        from app.telegram.bot import get_bot
-        await scheduler_service.flush_user(session, get_bot(), user.id)
+    # Flush any 0-delay steps immediately, whether enrollment came from a
+    # campaign's default auto-flow or the organic-start fallback auto-flow.
+    from app.services import scheduler as scheduler_service
+    from app.telegram.bot import get_bot
+    await scheduler_service.flush_user(session, get_bot(), user.id)
 
 
 @router.message(Command("stop"))

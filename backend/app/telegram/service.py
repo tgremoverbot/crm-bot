@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.campaign import Campaign
 from app.models.user import User
+from app.repositories import app_settings as settings_repo
 from app.repositories import campaigns as campaign_repo
 from app.repositories import events as event_repo
 from app.repositories import sequences as seq_repo
@@ -76,6 +77,14 @@ async def handle_start(
         sequence = await seq_repo.get_by_id(session, campaign.default_sequence_id)
         if sequence and sequence.is_active:
             await enroll_user_in_sequence(session, user, sequence)
+    elif not campaign_slug:
+        # Organic start (no invite link at all) — fall back to the admin-configured
+        # default auto-flow, if one is set.
+        settings = await settings_repo.get(session)
+        if settings.default_sequence_id:
+            sequence = await seq_repo.get_by_id(session, settings.default_sequence_id)
+            if sequence and sequence.is_active:
+                await enroll_user_in_sequence(session, user, sequence)
 
     return user, is_new, campaign
 

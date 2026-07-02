@@ -1,17 +1,9 @@
 import PageHeader from '../components/PageHeader';
+import FullPageLoading from '../components/FullPageLoading';
 import LoadingState from '../components/LoadingState';
 import ConfirmModal from '../components/ConfirmModal';
-import type { TriggerKind } from '../types';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useSequenceForm } from '../hooks/useSequenceForm';
-
-const TRIGGER_KINDS: TriggerKind[] = ['campaign_join', 'manual', 'tag_added'];
-
-const TRIGGER_LABELS: Record<TriggerKind, string> = {
-  campaign_join: 'Someone joins via invite link',
-  manual: 'Triggered manually',
-  tag_added: 'Tag is added',
-};
 
 function formatDelay(minutes: number): string {
   if (minutes === 0) return 'Sends immediately';
@@ -30,11 +22,10 @@ export default function SequenceForm() {
     setName,
     description,
     setDescription,
-    triggerKind,
-    setTriggerKind,
     isActive,
     setIsActive,
     error,
+    saved,
     steps,
     newStepMaterialId,
     setNewStepMaterialId,
@@ -51,7 +42,7 @@ export default function SequenceForm() {
     handleCancel,
   } = useSequenceForm();
 
-  if (isEdit && isLoading) return <div className="p-6"><LoadingState /></div>;
+  if (isEdit && isLoading) return <FullPageLoading />;
 
   return (
     <div className="p-6 max-w-2xl">
@@ -67,10 +58,8 @@ export default function SequenceForm() {
           <textarea className="input-field" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
         <div>
-          <label className="label">Start this flow when…</label>
-          <select className="input-field" value={triggerKind} onChange={(e) => setTriggerKind(e.target.value as TriggerKind)}>
-            {TRIGGER_KINDS.map((k) => <option key={k} value={k}>{TRIGGER_LABELS[k]}</option>)}
-          </select>
+          <label className="label">Starts when</label>
+          <p className="text-sm text-[#8aab96]">Someone joins via an invite link with this auto-flow attached.</p>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -84,13 +73,14 @@ export default function SequenceForm() {
         </div>
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
+        {saved && <p className="text-brand-400 text-sm">Saved.</p>}
 
         <div className="flex gap-3 pt-2">
           <button type="submit" className="btn-primary" disabled={isPending}>
             {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create & add steps'}
           </button>
           <button type="button" className="btn-secondary" onClick={handleCancel}>
-            Cancel
+            {isEdit ? 'Back to list' : 'Cancel'}
           </button>
         </div>
       </form>
@@ -109,7 +99,6 @@ export default function SequenceForm() {
             <div className="card overflow-hidden mb-4">
               {steps.map((step, i) => (
                 <div key={step.id} className="flex items-center gap-3 px-4 py-3 border-b border-[#1a2e24] last:border-0">
-                  <GripVertical size={14} className="text-[#2a4030] shrink-0" />
                   <span className="w-5 text-center text-xs font-mono text-[#4a7060]">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-[#dff5ea] truncate">

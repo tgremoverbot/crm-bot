@@ -16,6 +16,7 @@ export function useSequenceForm() {
   const [triggerKind, setTriggerKind] = useState<TriggerKind>('campaign_join');
   const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
 
   const [newStepMaterialId, setNewStepMaterialId] = useState('');
   const [newStepDelay, setNewStepDelay] = useState(0);
@@ -60,7 +61,9 @@ export function useSequenceForm() {
     mutationFn: (data: Parameters<typeof sequenceApi.update>[1]) => sequenceApi.update(id!, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sequences'] });
-      navigate('/sequences');
+      qc.invalidateQueries({ queryKey: ['sequence', id] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
     },
     onError: () => setError('Failed to update sequence.'),
   });
@@ -128,6 +131,7 @@ export function useSequenceForm() {
     isActive,
     setIsActive,
     error,
+    saved,
     steps,
     newStepMaterialId,
     setNewStepMaterialId,

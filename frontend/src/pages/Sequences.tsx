@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { sequenceApi } from '../api/sequences';
+import { settingsApi } from '../api/settings';
 import PageHeader from '../components/PageHeader';
 import LoadingState from '../components/LoadingState';
 import ErrorState from '../components/ErrorState';
@@ -9,6 +10,63 @@ import EmptyState from '../components/EmptyState';
 import Badge from '../components/Badge';
 import ConfirmModal from '../components/ConfirmModal';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
+import type { Sequence } from '../types';
+
+function DefaultFlowCard({ sequences }: { sequences: Sequence[] }) {
+  const qc = useQueryClient();
+  const [value, setValue] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ['settings'],
+    queryFn: settingsApi.get,
+  });
+
+  useEffect(() => {
+    if (settings) setValue(settings.default_sequence_id ?? '');
+  }, [settings]);
+
+  const save = useMutation({
+    mutationFn: (sequenceId: string | null) => settingsApi.update(sequenceId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings'] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    },
+  });
+
+  if (isLoading) return null;
+
+  return (
+    <div className="card p-5 mb-6">
+      <h3 className="text-sm font-semibold text-[#dff5ea] mb-1">Default auto-flow</h3>
+      <p className="text-xs text-[#4a7060] mb-3">
+        Sent automatically to people who start the bot without any invite link.
+      </p>
+      <div className="flex gap-3 items-center flex-wrap">
+        <select
+          className="input-field max-w-xs"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        >
+          <option value="">None</option>
+          {sequences.filter((s) => s.is_active).map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn-secondary text-sm"
+          disabled={save.isPending}
+          onClick={() => save.mutate(value || null)}
+        >
+          {save.isPending ? 'Saving…' : 'Save'}
+        </button>
+        {saved && <span className="text-brand-400 text-sm">Saved.</span>}
+      </div>
+    </div>
+  );
+}
 
 export default function Sequences() {
   const qc = useQueryClient();
@@ -39,6 +97,8 @@ export default function Sequences() {
       {isLoading && <LoadingState />}
       {isError && <ErrorState message="Failed to load sequences." />}
 
+      {data && data.length > 0 && <DefaultFlowCard sequences={data} />}
+
       {data && data.length === 0 && (
         <EmptyState title="No auto-flows yet" description="Create an auto-flow to automate follow-up messages." />
       )}
@@ -49,7 +109,6 @@ export default function Sequences() {
             <thead>
               <tr className="border-b border-[#1a2e24]">
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Name</th>
-                <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Trigger</th>
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Status</th>
                 <th className="text-left px-4 py-3 text-[#4a7060] font-medium">Created</th>
                 <th className="px-4 py-3" />
@@ -59,9 +118,6 @@ export default function Sequences() {
               {data.map((s) => (
                 <tr key={s.id} className="table-row">
                   <td className="px-4 py-3 text-[#dff5ea] font-medium">{s.name}</td>
-                  <td className="px-4 py-3">
-                    <Badge label={s.trigger_kind ?? 'manual'} variant="blue" />
-                  </td>
                   <td className="px-4 py-3">
                     <Badge label={s.is_active ? 'Active' : 'Inactive'} variant={s.is_active ? 'green' : 'gray'} />
                   </td>

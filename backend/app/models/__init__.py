@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.models.admin_user import AdminUser
+from app.models.app_settings import AppSettings
 from app.models.broadcast import (
     Broadcast,
     BroadcastDelivery,
@@ -25,6 +26,7 @@ from app.models.user import User
 
 __all__ = [
     "AdminUser",
+    "AppSettings",
     "Broadcast",
     "BroadcastDelivery",
     "BroadcastDeliveryStatus",
