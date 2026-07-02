@@ -1,11 +1,15 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { statsApi } from '../api/stats';
 import PageHeader from '../components/PageHeader';
 import LoadingState from '../components/LoadingState';
 import ErrorState from '../components/ErrorState';
-import type { Stats } from '../types';
+import Badge from '../components/Badge';
+import type { Stats, Broadcast } from '../types';
+import { broadcastStatusVariant } from '../constants/broadcastStatus';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const GROWTH_WINDOWS = [7, 30, 90] as const;
 
 function dayLabel(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -15,56 +19,107 @@ function dayLabel(dateStr: string): string {
 interface KpiCardProps {
   label: string;
   value: number;
-  trend: 'up' | 'flat';
+  /** current-period minus previous-period; omit if no meaningful comparison exists */
+  delta?: number;
+  deltaSuffix?: string;
+  /** which direction of delta counts as good news; defaults to 'up' */
+  goodDirection?: 'up' | 'down';
+  extra?: string;
 }
 
-function KpiCard({ label, value, trend }: KpiCardProps) {
+function KpiCard({ label, value, delta, deltaSuffix = 'vs last week', goodDirection = 'up', extra }: KpiCardProps) {
+  let trendColor = '#4a7060';
+  let trendIcon = '→';
+  let deltaText: string | null = null;
+
+  if (delta !== undefined) {
+    const isGood = goodDirection === 'up' ? delta > 0 : delta < 0;
+    const isBad = goodDirection === 'up' ? delta < 0 : delta > 0;
+    trendIcon = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+    trendColor = isGood ? '#34d399' : isBad ? '#f87171' : '#4a7060';
+    deltaText = `${delta > 0 ? '+' : ''}${delta} ${deltaSuffix}`;
+  }
+
   return (
     <div className="card p-5">
       <div className="flex items-start justify-between">
         <p className="text-3xl font-bold text-[#dff5ea] font-mono">
           {value.toLocaleString()}
         </p>
-        <span className="text-brand-400 text-lg" aria-hidden="true">
-          {trend === 'up' ? '↑' : '→'}
+        <span className="text-lg" style={{ color: trendColor }} aria-hidden="true">
+          {trendIcon}
         </span>
       </div>
       <span className="mt-2 block text-xs text-[#4a7060] font-medium uppercase tracking-wider">
         {label}
       </span>
+      {deltaText && (
+        <p className="mt-1 text-xs" style={{ color: trendColor }}>{deltaText}</p>
+      )}
+      {extra && <p className="mt-1 text-xs text-[#4a7060]">{extra}</p>}
     </div>
   );
 }
 
-function GrowthChart({ days }: { days: Stats['growth']['last_7_days'] }) {
+function GrowthChart({
+  days,
+  windowDays,
+  onWindowChange,
+}: {
+  days: Stats['growth']['days'];
+  windowDays: number;
+  onWindowChange: (days: number) => void;
+}) {
   const max = Math.max(1, ...days.map((d) => d.new_users));
+  const showLabels = windowDays <= 7;
+
   return (
     <div className="card p-5">
-      <h3 className="text-sm font-semibold text-[#dff5ea] mb-4">
-        New subscribers — last 7 days
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-[#dff5ea]">New subscribers</h3>
+        <div className="flex gap-1">
+          {GROWTH_WINDOWS.map((w) => (
+            <button
+              key={w}
+              type="button"
+              onClick={() => onWindowChange(w)}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                windowDays === w
+                  ? 'bg-brand-500/20 text-brand-400'
+                  : 'text-[#4a7060] hover:text-[#8aab96]'
+              }`}
+            >
+              {w}d
+            </button>
+          ))}
+        </div>
+      </div>
       {days.length === 0 ? (
         <p className="text-sm text-[#4a7060]">No data yet</p>
       ) : (
-        <div className="flex items-end justify-between gap-2 h-44">
+        <div className="flex items-end justify-between gap-[2px] h-44">
           {days.map((d) => {
             const heightPct = (d.new_users / max) * 100;
             return (
               <div
                 key={d.date}
                 className="flex flex-1 flex-col items-center justify-end h-full"
+                title={`${d.date}: ${d.new_users}`}
               >
-                <span className="text-xs font-mono text-[#dff5ea] mb-1">
-                  {d.new_users}
-                </span>
+                {showLabels && (
+                  <span className="text-xs font-mono text-[#dff5ea] mb-1">
+                    {d.new_users}
+                  </span>
+                )}
                 <div
                   className="w-full rounded-t bg-brand-500"
                   style={{ height: `${Math.max(heightPct, 2)}%` }}
-                  title={`${d.date}: ${d.new_users}`}
                 />
-                <span className="mt-2 text-[10px] text-[#4a7060] uppercase tracking-wide">
-                  {dayLabel(d.date)}
-                </span>
+                {showLabels && (
+                  <span className="mt-2 text-[10px] text-[#4a7060] uppercase tracking-wide">
+                    {dayLabel(d.date)}
+                  </span>
+                )}
               </div>
             );
           })}
@@ -100,9 +155,10 @@ function DeliveryPanel({
 
   return (
     <div className="card p-5 flex flex-col">
-      <h3 className="text-sm font-semibold text-[#dff5ea] mb-4">
-        Auto-flow delivery
+      <h3 className="text-sm font-semibold text-[#dff5ea] mb-1">
+        Auto-flow delivery rate
       </h3>
+      <p className="text-xs text-[#4a7060] mb-3">Share of auto-flow messages that sent successfully (excludes broadcasts)</p>
       <div className="flex flex-col items-center justify-center flex-1">
         <p className="text-5xl font-bold font-mono" style={{ color }}>
           {display}
@@ -177,27 +233,6 @@ function InviteLinksTable({
   );
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  sent: '#34d399',
-  sending: '#60a5fa',
-  scheduled: '#fbbf24',
-  failed: '#f87171',
-  cancelled: '#9ca3af',
-  draft: '#9ca3af',
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const color = STATUS_COLORS[status.toLowerCase()] ?? '#9ca3af';
-  return (
-    <span
-      className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"
-      style={{ color, backgroundColor: `${color}22` }}
-    >
-      {status}
-    </span>
-  );
-}
-
 function RecentSends({
   broadcasts,
 }: {
@@ -221,7 +256,7 @@ function RecentSends({
                   <span className="text-sm text-[#dff5ea] truncate pr-2">
                     {b.name}
                   </span>
-                  <StatusBadge status={b.status} />
+                  <Badge label={b.status} variant={broadcastStatusVariant[b.status as Broadcast['status']] ?? 'gray'} />
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
                   <div
@@ -242,18 +277,16 @@ function RecentSends({
 }
 
 export default function Dashboard() {
+  const [growthWindow, setGrowthWindow] = useState(7);
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['stats'],
-    queryFn: statsApi.get,
+    queryKey: ['stats', growthWindow],
+    queryFn: () => statsApi.get(growthWindow),
   });
 
-  const newThisWeek = data
-    ? data.growth.last_7_days.reduce((sum, d) => sum + d.new_users, 0)
-    : 0;
-  const messagesDelivered = data
-    ? data.broadcasts.recent.reduce((sum, b) => sum + b.success_count, 0) ||
-      data.broadcasts.sent
-    : 0;
+  const blockedPct = data && data.users.total > 0
+    ? ((data.users.blocked / data.users.total) * 100).toFixed(1)
+    : null;
 
   return (
     <div className="p-6">
@@ -269,29 +302,36 @@ export default function Dashboard() {
             <KpiCard
               label="Total subscribers"
               value={data.users.total}
-              trend="up"
+              extra={`${data.users.active_7d.toLocaleString()} active in last 7 days`}
             />
             <KpiCard
               label="New this week"
-              value={newThisWeek}
-              trend={newThisWeek > 0 ? 'up' : 'flat'}
+              value={data.users.new_this_week}
+              delta={data.users.new_this_week - data.users.new_prev_week}
+              deltaSuffix="vs prior week"
             />
             <KpiCard
               label="Messages delivered"
-              value={messagesDelivered}
-              trend="up"
+              value={data.messages.delivered_total}
+              delta={data.messages.delivered_this_week - data.messages.delivered_prev_week}
+              deltaSuffix="this week vs last"
             />
             <KpiCard
               label="Blocked users"
               value={data.users.blocked}
-              trend="flat"
+              goodDirection="down"
+              extra={blockedPct !== null ? `${blockedPct}% of subscribers` : undefined}
             />
           </div>
 
           {/* Zone 2 — 60/40 split */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             <div className="lg:col-span-3">
-              <GrowthChart days={data.growth.last_7_days} />
+              <GrowthChart
+                days={data.growth.days}
+                windowDays={data.growth.window_days}
+                onWindowChange={setGrowthWindow}
+              />
             </div>
             <div className="lg:col-span-2">
               <DeliveryPanel

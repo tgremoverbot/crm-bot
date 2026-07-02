@@ -6,6 +6,8 @@ from pydantic import BaseModel
 class UserStats(BaseModel):
     total: int
     new_today: int
+    new_this_week: int
+    new_prev_week: int
     active_7d: int
     blocked: int = 0
 
@@ -44,13 +46,22 @@ class ScheduledStats(BaseModel):
     pending: int
 
 
+class MessageStats(BaseModel):
+    """All-source (auto-flow + broadcast) count of successfully delivered messages."""
+
+    delivered_total: int
+    delivered_this_week: int
+    delivered_prev_week: int
+
+
 class GrowthDay(BaseModel):
     date: str
     new_users: int
 
 
 class GrowthStats(BaseModel):
-    last_7_days: list[GrowthDay] = []
+    days: list[GrowthDay] = []
+    window_days: int = 7
 
 
 class InviteLinkFunnel(BaseModel):
@@ -74,6 +85,7 @@ class StatsOut(BaseModel):
     materials: SimpleCount
     sequences: SequenceStats
     broadcasts: BroadcastStats
+    messages: MessageStats
     scheduled: ScheduledStats
     growth: GrowthStats = GrowthStats()
     funnels: FunnelStats = FunnelStats()

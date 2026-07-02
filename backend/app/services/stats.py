@@ -5,7 +5,12 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.broadcast import Broadcast, BroadcastStatus
+from app.models.broadcast import (
+    Broadcast,
+    BroadcastDelivery,
+    BroadcastDeliveryStatus,
+    BroadcastStatus,
+)
 from app.models.campaign import Campaign
 from app.models.enums import ScheduledMessageStatus, SourceKind
 from app.models.material import Material
@@ -20,6 +25,7 @@ from app.schemas.stats import (
     GrowthDay,
     GrowthStats,
     InviteLinkFunnel,
+    MessageStats,
     RecentBroadcast,
     ScheduledStats,
     SequenceStats,
@@ -28,11 +34,17 @@ from app.schemas.stats import (
     UserStats,
 )
 
+_VALID_GROWTH_WINDOWS = (7, 30, 90)
 
-async def get_dashboard_stats(session: AsyncSession) -> StatsOut:
+
+async def get_dashboard_stats(session: AsyncSession, *, growth_days: int = 7) -> StatsOut:
+    if growth_days not in _VALID_GROWTH_WINDOWS:
+        growth_days = 7
+
     now = datetime.now(timezone.utc)
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_ago = now - timedelta(days=7)
+    two_weeks_ago = now - timedelta(days=14)
 
     async def _count(stmt) -> int:
         return (await session.scalar(stmt)) or 0
@@ -40,6 +52,14 @@ async def get_dashboard_stats(session: AsyncSession) -> StatsOut:
     total_users = await _count(select(func.count()).select_from(User))
     new_today = await _count(
         select(func.count()).select_from(User).where(User.created_at >= today)
+    )
+    new_this_week = await _count(
+        select(func.count()).select_from(User).where(User.created_at >= week_ago)
+    )
+    new_prev_week = await _count(
+        select(func.count())
+        .select_from(User)
+        .where(User.created_at >= two_weeks_ago, User.created_at < week_ago)
     )
     active_7d = await _count(
         select(func.count()).select_from(User).where(User.last_seen_at >= week_ago)
@@ -68,15 +88,20 @@ async def get_dashboard_stats(session: AsyncSession) -> StatsOut:
         .where(ScheduledMessage.status == ScheduledMessageStatus.PENDING)
     )
 
-    growth = await _build_growth(session, today)
+    growth = await _build_growth(session, today, days=growth_days)
     funnels = await _build_funnels(session)
     recent_broadcasts = await _build_recent_broadcasts(session)
     delivery = await _build_delivery(session)
+    messages = await _build_message_stats(
+        session, week_ago=week_ago, two_weeks_ago=two_weeks_ago
+    )
 
     return StatsOut(
         users=UserStats(
             total=total_users,
             new_today=new_today,
+            new_this_week=new_this_week,
+            new_prev_week=new_prev_week,
             active_7d=active_7d,
             blocked=blocked_users,
         ),
@@ -88,6 +113,7 @@ async def get_dashboard_stats(session: AsyncSession) -> StatsOut:
             sent=sent_broadcasts,
             recent=recent_broadcasts,
         ),
+        messages=messages,
         scheduled=ScheduledStats(pending=pending_scheduled),
         growth=growth,
         funnels=funnels,
@@ -95,9 +121,9 @@ async def get_dashboard_stats(session: AsyncSession) -> StatsOut:
     )
 
 
-async def _build_growth(session: AsyncSession, today: datetime) -> GrowthStats:
-    """New users per day for the past 7 calendar days (UTC), zero-filled."""
-    start = today - timedelta(days=6)
+async def _build_growth(session: AsyncSession, today: datetime, *, days: int = 7) -> GrowthStats:
+    """New users per day for the past `days` calendar days (UTC), zero-filled."""
+    start = today - timedelta(days=days - 1)
     day_expr = func.date(User.created_at)
     stmt = (
         select(day_expr.label("day"), func.count().label("count"))
@@ -111,12 +137,56 @@ async def _build_growth(session: AsyncSession, today: datetime) -> GrowthStats:
         key = day.isoformat() if hasattr(day, "isoformat") else str(day)
         counts[key] = int(count or 0)
 
-    days: list[GrowthDay] = []
-    for offset in range(7):
+    result_days: list[GrowthDay] = []
+    for offset in range(days):
         d = start + timedelta(days=offset)
         key = d.strftime("%Y-%m-%d")
-        days.append(GrowthDay(date=key, new_users=counts.get(key, 0)))
-    return GrowthStats(last_7_days=days)
+        result_days.append(GrowthDay(date=key, new_users=counts.get(key, 0)))
+    return GrowthStats(days=result_days, window_days=days)
+
+
+async def _build_message_stats(
+    session: AsyncSession, *, week_ago: datetime, two_weeks_ago: datetime
+) -> MessageStats:
+    """Accurate, all-source (auto-flow + broadcast) delivered-message counts.
+
+    Combines ScheduledMessage (auto-flow drip sends) and BroadcastDelivery
+    (broadcast sends) — these are two separate tables, so a single count
+    query can't cover both.
+    """
+
+    async def _seq_sent(since: datetime | None = None, until: datetime | None = None) -> int:
+        stmt = select(func.count()).select_from(ScheduledMessage).where(
+            ScheduledMessage.status == ScheduledMessageStatus.SENT
+        )
+        if since is not None:
+            stmt = stmt.where(ScheduledMessage.sent_at >= since)
+        if until is not None:
+            stmt = stmt.where(ScheduledMessage.sent_at < until)
+        return (await session.scalar(stmt)) or 0
+
+    async def _broadcast_sent(since: datetime | None = None, until: datetime | None = None) -> int:
+        stmt = select(func.count()).select_from(BroadcastDelivery).where(
+            BroadcastDelivery.status == BroadcastDeliveryStatus.SENT
+        )
+        if since is not None:
+            stmt = stmt.where(BroadcastDelivery.sent_at >= since)
+        if until is not None:
+            stmt = stmt.where(BroadcastDelivery.sent_at < until)
+        return (await session.scalar(stmt)) or 0
+
+    total = await _seq_sent() + await _broadcast_sent()
+    this_week = await _seq_sent(since=week_ago) + await _broadcast_sent(since=week_ago)
+    prev_week = (
+        await _seq_sent(since=two_weeks_ago, until=week_ago)
+        + await _broadcast_sent(since=two_weeks_ago, until=week_ago)
+    )
+
+    return MessageStats(
+        delivered_total=total,
+        delivered_this_week=this_week,
+        delivered_prev_week=prev_week,
+    )
 
 
 async def _build_funnels(session: AsyncSession) -> FunnelStats:

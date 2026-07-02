@@ -55,7 +55,7 @@ async def test_growth_returns_7_days_with_zero_fill(db_session: AsyncSession):
 
     stats = await get_dashboard_stats(db_session)
 
-    days = stats.growth.last_7_days
+    days = stats.growth.days
     assert len(days) == 7
     # ascending by date
     dates = [d.date for d in days]
@@ -197,3 +197,91 @@ async def test_existing_fields_preserved(db_session: AsyncSession):
     assert stats.sequences.total == 0
     assert stats.broadcasts.total == 0
     assert stats.scheduled.pending == 0
+
+
+async def test_new_this_week_vs_prev_week(db_session: AsyncSession):
+    now = datetime.now(timezone.utc)
+    # 2 users this week
+    await _user(db_session, 40, created_at=now - timedelta(days=1))
+    await _user(db_session, 41, created_at=now - timedelta(days=2))
+    # 1 user in the prior week (8-13 days ago)
+    await _user(db_session, 42, created_at=now - timedelta(days=10))
+    # 1 user way outside both windows
+    await _user(db_session, 43, created_at=now - timedelta(days=40))
+
+    stats = await get_dashboard_stats(db_session)
+
+    assert stats.users.new_this_week == 2
+    assert stats.users.new_prev_week == 1
+
+
+async def test_growth_days_query_param(db_session: AsyncSession):
+    now = datetime.now(timezone.utc)
+    await _user(db_session, 50, created_at=now - timedelta(days=20))
+
+    stats_7 = await get_dashboard_stats(db_session, growth_days=7)
+    assert len(stats_7.growth.days) == 7
+    assert stats_7.growth.window_days == 7
+    assert sum(d.new_users for d in stats_7.growth.days) == 0  # 20 days ago, outside window
+
+    stats_30 = await get_dashboard_stats(db_session, growth_days=30)
+    assert len(stats_30.growth.days) == 30
+    assert stats_30.growth.window_days == 30
+    assert sum(d.new_users for d in stats_30.growth.days) == 1
+
+
+async def test_growth_days_invalid_falls_back_to_7(db_session: AsyncSession):
+    stats = await get_dashboard_stats(db_session, growth_days=13)
+    assert stats.growth.window_days == 7
+    assert len(stats.growth.days) == 7
+
+
+async def test_message_stats_combines_sequence_and_broadcast_sends(
+    db_session: AsyncSession, material: Material
+):
+    from app.models.broadcast import Broadcast, BroadcastDelivery, BroadcastDeliveryStatus
+
+    now = datetime.now(timezone.utc)
+    u = await _user(db_session, 60)
+    u2 = await _user(db_session, 61)
+
+    # 2 sequence messages sent this week, 1 sent last (prior) week
+    db_session.add(ScheduledMessage(
+        user_id=u.id, material_id=material.id, status=ScheduledMessageStatus.SENT,
+        source_kind=SourceKind.SEQUENCE, scheduled_at=now, sent_at=now - timedelta(days=1),
+    ))
+    db_session.add(ScheduledMessage(
+        user_id=u.id, material_id=material.id, status=ScheduledMessageStatus.SENT,
+        source_kind=SourceKind.SEQUENCE, scheduled_at=now, sent_at=now - timedelta(days=2),
+    ))
+    db_session.add(ScheduledMessage(
+        user_id=u.id, material_id=material.id, status=ScheduledMessageStatus.SENT,
+        source_kind=SourceKind.SEQUENCE, scheduled_at=now, sent_at=now - timedelta(days=10),
+    ))
+    # A pending one must not be counted at all
+    db_session.add(ScheduledMessage(
+        user_id=u.id, material_id=material.id, status=ScheduledMessageStatus.PENDING,
+        source_kind=SourceKind.SEQUENCE, scheduled_at=now,
+    ))
+
+    bc = Broadcast(name="B", material_id=material.id, status=BroadcastStatus.SENT)
+    db_session.add(bc)
+    await db_session.flush()
+    # 1 broadcast delivery sent this week, 1 failed (must not count)
+    db_session.add(BroadcastDelivery(
+        broadcast_id=bc.id, user_id=u.id, status=BroadcastDeliveryStatus.SENT,
+        sent_at=now - timedelta(hours=1),
+    ))
+    db_session.add(BroadcastDelivery(
+        broadcast_id=bc.id, user_id=u2.id, status=BroadcastDeliveryStatus.FAILED,
+    ))
+    await db_session.commit()
+
+    stats = await get_dashboard_stats(db_session)
+
+    # total sent: 3 sequence + 1 broadcast = 4 (pending/failed excluded)
+    assert stats.messages.delivered_total == 4
+    # this week: 2 sequence (1 and 2 days ago) + 1 broadcast (1 hour ago) = 3
+    assert stats.messages.delivered_this_week == 3
+    # prev week: 1 sequence (10 days ago) = 1
+    assert stats.messages.delivered_prev_week == 1

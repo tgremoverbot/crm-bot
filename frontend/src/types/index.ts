@@ -119,13 +119,25 @@ export interface RecentBroadcast {
 }
 
 export interface Stats {
-  users: { total: number; new_today: number; active_7d: number; blocked: number };
+  users: {
+    total: number;
+    new_today: number;
+    new_this_week: number;
+    new_prev_week: number;
+    active_7d: number;
+    blocked: number;
+  };
   campaigns: { total: number; active: number };
   materials: { total: number };
   sequences: { total: number; active: number };
   broadcasts: { total: number; sent: number; recent: RecentBroadcast[] };
+  messages: {
+    delivered_total: number;
+    delivered_this_week: number;
+    delivered_prev_week: number;
+  };
   scheduled: { pending: number };
-  growth: { last_7_days: GrowthDay[] };
+  growth: { days: GrowthDay[]; window_days: number };
   funnels: { invite_links: InviteLinkFunnel[] };
   delivery: { sequence_success_rate: number | null };
 }
