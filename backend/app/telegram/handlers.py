@@ -4,12 +4,11 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardRemove
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models.enums import MaterialKind, ParseMode
-from app.telegram.keyboards import build_menu
 from app.telegram.service import handle_start, handle_stop
 
 router = Router(name="main")
@@ -23,8 +22,7 @@ class SaveMessage(StatesGroup):
 
 _WELCOME = (
     "Assalomu alaykum! 👋\n\n"
-    "Arabic tilini o'rganishga xush kelibsiz.\n"
-    "Quyidagi tugmalardan birini tanlang:"
+    "Arabic tilini o'rganishga xush kelibsiz."
 )
 
 _STOP_TEXT = (
@@ -53,9 +51,7 @@ async def cmd_start(
         campaign_slug=payload or None,
     )
     if not payload:
-        from app.repositories import menu_buttons as menu_repo
-        buttons = await menu_repo.list_active(session)
-        await message.answer(_WELCOME, reply_markup=build_menu(buttons))
+        await message.answer(_WELCOME, reply_markup=ReplyKeyboardRemove())
 
     if campaign:
         from app.services import scheduler as scheduler_service
@@ -168,37 +164,3 @@ async def admin_receive_content(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(F.text)
-async def handle_menu_button(message: Message, session: AsyncSession) -> None:
-    """Catch-all text handler — dispatch if the text matches an active menu button."""
-    from app.repositories import menu_buttons as menu_repo
-    from app.repositories import events as event_repo
-    from app.repositories import materials as material_repo
-    from app.services.sender import send_material
-
-    button = await menu_repo.get_by_label(session, message.text)
-    if button is None:
-        return
-
-    user = await _get_or_none(session, message.from_user.id)
-    await event_repo.log(
-        session,
-        type="menu_clicked",
-        user_id=user.id if user else None,
-        payload={"button": message.text, "action_kind": button.action_kind},
-    )
-
-    if button.action_kind == "material" and button.action_material_id:
-        material = await material_repo.get_by_id(session, button.action_material_id)
-        if material:
-            from app.telegram.bot import get_bot
-            await send_material(get_bot(), message.chat.id, material)
-            return
-
-    if button.action_text:
-        await message.answer(button.action_text)
-
-
-async def _get_or_none(session, telegram_id: int):
-    from app.repositories import users as user_repo
-    return await user_repo.get_by_telegram_id(session, telegram_id)

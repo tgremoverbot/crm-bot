@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Megaphone, BookOpen,
-  GitBranch, Radio, LogOut, LayoutGrid,
+  GitBranch, Radio, LogOut,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -12,7 +12,6 @@ const nav = [
   { to: '/materials', label: 'Messages', icon: BookOpen },
   { to: '/sequences', label: 'Auto-flows', icon: GitBranch },
   { to: '/broadcasts', label: 'Send message', icon: Radio },
-  { to: '/menu-buttons', label: 'Menu buttons', icon: LayoutGrid },
 ];
 
 export default function Sidebar() {
