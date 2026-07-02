@@ -238,5 +238,5 @@ async def test_process_scheduled_endpoint_dry_run(client: AsyncClient, admin_use
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["dry_run"] is True
-    assert "total" in data
+    assert data["messages"]["dry_run"] is True
+    assert "total" in data["messages"]

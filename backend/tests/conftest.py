@@ -4,8 +4,12 @@ import os
 
 # Force test-safe values before any app import.
 # DATABASE_URL is always overridden to sqlite so tests never need a real Postgres server.
+# TELEGRAM_WEBHOOK_SECRET is forced (not setdefault) so a real value in a local
+# backend/.env file can't leak into the test run and make the webhook tests
+# depend on the developer's machine state.
 os.environ["ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["TELEGRAM_WEBHOOK_SECRET"] = ""
 os.environ.setdefault("FRONTEND_ORIGIN", "http://localhost:5173")
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
 os.environ.setdefault("JWT_SECRET", "test-only-jwt-secret-key-32-chars-padding!!")
