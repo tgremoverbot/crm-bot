@@ -4,7 +4,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.broadcast import (
@@ -12,6 +12,12 @@ from app.models.broadcast import (
     BroadcastDelivery,
     BroadcastDeliveryStatus,
     BroadcastStatus,
+)
+
+_DELETABLE_STATUSES = (
+    BroadcastStatus.SENT,
+    BroadcastStatus.FAILED,
+    BroadcastStatus.CANCELLED,
 )
 
 
@@ -119,6 +125,35 @@ async def list_due(
         (Broadcast.scheduled_at.is_(None)) | (Broadcast.scheduled_at <= now),
     )
     return (await session.execute(stmt)).scalars().all()
+
+
+async def delete_old(
+    session: AsyncSession, *, cutoff: datetime, dry_run: bool = False
+) -> int:
+    """Delete finished broadcasts (sent/failed/cancelled) older than `cutoff`.
+
+    Age is measured from `finished_at`, falling back to `created_at` for
+    broadcasts that never recorded a finish time. Deliveries are deleted
+    explicitly rather than relying on ON DELETE CASCADE, since SQLite (used
+    in tests) does not enforce FK cascades by default.
+
+    Returns the number of broadcasts deleted (or eligible, if `dry_run`).
+    """
+    age_expr = func.coalesce(Broadcast.finished_at, Broadcast.created_at)
+    stmt = select(Broadcast.id).where(
+        Broadcast.status.in_(_DELETABLE_STATUSES),
+        age_expr < cutoff,
+    )
+    ids = (await session.execute(stmt)).scalars().all()
+    if not ids or dry_run:
+        return len(ids)
+
+    await session.execute(
+        delete(BroadcastDelivery).where(BroadcastDelivery.broadcast_id.in_(ids))
+    )
+    await session.execute(delete(Broadcast).where(Broadcast.id.in_(ids)))
+    await session.flush()
+    return len(ids)
 
 
 async def get_recipients(

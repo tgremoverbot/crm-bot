@@ -36,7 +36,15 @@ async def process_scheduled(
         broadcasts_result = await scheduler_service.process_due_broadcasts(session, bot)
     else:
         broadcasts_result = {"processed": 0, "recipients_sent": 0, "recipients_failed": 0}
+
+    cleanup_result = await scheduler_service.cleanup_old_broadcasts(
+        session,
+        retention_days=get_settings().BROADCAST_RETENTION_DAYS,
+        dry_run=dry_run,
+    )
+
     return {
         "messages": messages_result,
         "broadcasts": broadcasts_result,
+        "broadcast_cleanup": cleanup_result,
     }

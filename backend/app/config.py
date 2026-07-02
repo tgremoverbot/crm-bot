@@ -83,6 +83,10 @@ class Settings(BaseSettings):
         default=100,
         description="Max scheduled messages processed per scheduler run.",
     )
+    BROADCAST_RETENTION_DAYS: int = Field(
+        default=90,
+        description="Finished broadcasts (sent/failed/cancelled) older than this are purged.",
+    )
 
     FRONTEND_ORIGIN: str = Field(
         default="http://localhost:5173",

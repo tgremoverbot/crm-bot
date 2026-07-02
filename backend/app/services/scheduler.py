@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
@@ -207,3 +207,19 @@ async def process_due_broadcasts(session: AsyncSession, bot: Bot) -> dict:
         result["recipients_failed"] += failed
 
     return result
+
+
+async def cleanup_old_broadcasts(
+    session: AsyncSession,
+    *,
+    retention_days: int,
+    dry_run: bool = False,
+) -> dict:
+    """Purge finished broadcasts (sent/failed/cancelled) older than `retention_days`."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    count = await broadcast_repo.delete_old(session, cutoff=cutoff, dry_run=dry_run)
+    return {
+        "deleted": 0 if dry_run else count,
+        "eligible": count,
+        "dry_run": dry_run,
+    }
