@@ -80,7 +80,7 @@ export default function Materials() {
                     <Badge label={kindLabel[m.kind] ?? m.kind} variant={kindVariant[m.kind] ?? 'gray'} />
                   </td>
                   <td className="px-4 py-3 text-[#4a7060] max-w-xs truncate">
-                    {m.body?.slice(0, 60) ?? (m.file_id ? 'File attached' : '—')}
+                    {m.body ?? (m.file_id ? 'File attached' : '—')}
                   </td>
                   <td className="px-4 py-3 text-[#4a7060]">{new Date(m.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">

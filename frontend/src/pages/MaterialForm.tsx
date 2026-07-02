@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import PageHeader from '../components/PageHeader';
-import LoadingState from '../components/LoadingState';
+import FullPageLoading from '../components/FullPageLoading';
 import type { MaterialKind, ParseMode } from '../types';
 import { useMaterialForm } from '../hooks/useMaterialForm';
 
@@ -43,7 +43,7 @@ export default function MaterialForm() {
 
   const [showFileId, setShowFileId] = useState(false);
 
-  if (isEdit && isLoading) return <div className="p-6"><LoadingState /></div>;
+  if (isEdit && isLoading) return <FullPageLoading />;
 
   const bodyLimit = kind === 'text' ? 4096 : 1024;
   const overLimit = body.length > bodyLimit;

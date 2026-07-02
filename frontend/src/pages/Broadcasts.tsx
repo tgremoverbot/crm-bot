@@ -10,15 +10,7 @@ import Badge from '../components/Badge';
 import ConfirmModal from '../components/ConfirmModal';
 import { Plus, Trash2, Pencil } from 'lucide-react';
 import type { Broadcast } from '../types';
-
-const statusVariant: Record<Broadcast['status'], 'gray' | 'yellow' | 'green' | 'red' | 'blue'> = {
-  draft: 'gray',
-  scheduled: 'yellow',
-  sending: 'blue',
-  sent: 'green',
-  cancelled: 'gray',
-  failed: 'red',
-};
+import { broadcastStatusVariant } from '../constants/broadcastStatus';
 
 const deletableStatuses: Broadcast['status'][] = ['draft', 'scheduled', 'failed'];
 
@@ -43,7 +35,7 @@ export default function Broadcasts() {
         subtitle="Send a message to all your students or a specific group"
         action={
           <Link to="/broadcasts/new" className="btn-primary flex items-center gap-2 text-sm">
-            <Plus size={14} /> Send to everyone
+            <Plus size={14} /> New Broadcast
           </Link>
         }
       />
@@ -73,7 +65,7 @@ export default function Broadcasts() {
                 <tr key={b.id} className="table-row">
                   <td className="px-4 py-3 text-[#dff5ea] font-medium">{b.name}</td>
                   <td className="px-4 py-3">
-                    <Badge label={b.status} variant={statusVariant[b.status]} />
+                    <Badge label={b.status} variant={broadcastStatusVariant[b.status]} />
                   </td>
                   <td className="px-4 py-3 font-mono text-[#4a7060]">
                     {b.success_count}/{b.recipient_count}

@@ -1,97 +1,37 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { broadcastApi } from '../api/broadcasts';
-import { materialApi } from '../api/materials';
 import PageHeader from '../components/PageHeader';
-import LoadingState from '../components/LoadingState';
+import FullPageLoading from '../components/FullPageLoading';
 import ErrorState from '../components/ErrorState';
+import ConfirmModal from '../components/ConfirmModal';
 import { Users, Send, Save } from 'lucide-react';
+import { useBroadcastEdit } from '../hooks/useBroadcastEdit';
 
 export default function BroadcastEdit() {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const qc = useQueryClient();
+  const {
+    bc,
+    isLoading,
+    isError,
+    materials,
+    name,
+    setName,
+    materialId,
+    setMaterialId,
+    scheduledAt,
+    setScheduledAt,
+    previewCount,
+    error,
+    saved,
+    confirmSendOpen,
+    isSavePending,
+    isPreviewPending,
+    isSendPending,
+    handleSave,
+    handlePreview,
+    requestSend,
+    confirmSend,
+    cancelSend,
+  } = useBroadcastEdit();
 
-  const [name, setName] = useState('');
-  const [materialId, setMaterialId] = useState('');
-  const [scheduledAt, setScheduledAt] = useState('');
-  const [previewCount, setPreviewCount] = useState<number | null>(null);
-  const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
-
-  const { data: bc, isLoading, isError } = useQuery({
-    queryKey: ['broadcast', id],
-    queryFn: () => broadcastApi.get(id!),
-    enabled: !!id,
-  });
-
-  const { data: materials } = useQuery({
-    queryKey: ['materials'],
-    queryFn: materialApi.list,
-  });
-
-  useEffect(() => {
-    if (bc) {
-      setName(bc.name);
-      setMaterialId(bc.material_id);
-      setScheduledAt(bc.scheduled_at ? new Date(bc.scheduled_at).toISOString().slice(0, 16) : '');
-    }
-  }, [bc]);
-
-  const preview = useMutation({
-    mutationFn: () => broadcastApi.preview(bc?.segment_id ?? null),
-    onSuccess: (data) => setPreviewCount(data.recipient_count),
-    onError: () => setError('Failed to get recipient count.'),
-  });
-
-  const save = useMutation({
-    mutationFn: () =>
-      broadcastApi.update(id!, {
-        name,
-        material_id: materialId,
-        segment_id: bc?.segment_id ?? null,
-        scheduled_at: scheduledAt || null,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['broadcasts'] });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    },
-    onError: () => setError('Failed to save changes.'),
-  });
-
-  const send = useMutation({
-    mutationFn: async () => {
-      await broadcastApi.update(id!, {
-        name,
-        material_id: materialId,
-        segment_id: bc?.segment_id ?? null,
-        scheduled_at: scheduledAt || null,
-      });
-      return broadcastApi.send(id!, scheduledAt || null);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['broadcasts'] });
-      navigate('/broadcasts');
-    },
-    onError: () => setError('Failed to send broadcast.'),
-  });
-
-  function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    if (!name || !materialId) { setError('Name and message are required.'); return; }
-    save.mutate();
-  }
-
-  function handleSend() {
-    setError('');
-    if (!name || !materialId) { setError('Name and message are required.'); return; }
-    send.mutate();
-  }
-
-  if (isLoading) return <div className="p-6"><LoadingState /></div>;
+  if (isLoading) return <FullPageLoading />;
   if (isError || !bc) return <div className="p-6"><ErrorState message="Broadcast not found." /></div>;
 
   if (bc.status !== 'draft') {
@@ -159,18 +99,18 @@ export default function BroadcastEdit() {
           <button
             type="submit"
             className="btn-secondary flex items-center gap-2 text-sm"
-            disabled={save.isPending}
+            disabled={isSavePending}
           >
-            <Save size={14} /> {save.isPending ? 'Saving…' : 'Save draft'}
+            <Save size={14} /> {isSavePending ? 'Saving…' : 'Save draft'}
           </button>
 
           <button
             type="button"
             className="btn-secondary flex items-center gap-2 text-sm"
-            onClick={() => { setError(''); preview.mutate(); }}
-            disabled={preview.isPending}
+            onClick={handlePreview}
+            disabled={isPreviewPending}
           >
-            <Users size={14} /> {preview.isPending ? 'Checking…' : 'Check recipients'}
+            <Users size={14} /> {isPreviewPending ? 'Checking…' : 'Check recipients'}
           </button>
         </div>
 
@@ -187,13 +127,28 @@ export default function BroadcastEdit() {
           <button
             type="button"
             className="btn-primary flex items-center gap-2 text-sm w-full justify-center mt-3"
-            onClick={handleSend}
-            disabled={send.isPending}
+            onClick={requestSend}
+            disabled={isSendPending}
           >
-            <Send size={14} /> {send.isPending ? 'Sending…' : scheduledAt ? 'Schedule send' : 'Send now'}
+            <Send size={14} /> {isSendPending ? 'Sending…' : scheduledAt ? 'Schedule send' : 'Send now'}
           </button>
         </div>
       </form>
+
+      {confirmSendOpen && (
+        <ConfirmModal
+          title={scheduledAt ? 'Schedule this broadcast?' : 'Send this broadcast now?'}
+          message={
+            previewCount !== null
+              ? `This will send "${name}" to ${previewCount.toLocaleString()} recipient${previewCount === 1 ? '' : 's'}. This cannot be undone.`
+              : `This will send "${name}" to all matching recipients. Use "Check recipients" first if you want to know how many people that is. This cannot be undone.`
+          }
+          confirmLabel={scheduledAt ? 'Schedule' : 'Send now'}
+          danger
+          onConfirm={confirmSend}
+          onCancel={cancelSend}
+        />
+      )}
     </div>
   );
 }

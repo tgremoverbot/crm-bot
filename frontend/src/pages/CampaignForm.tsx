@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import PageHeader from '../components/PageHeader';
-import LoadingState from '../components/LoadingState';
+import FullPageLoading from '../components/FullPageLoading';
 import { useCampaignForm } from '../hooks/useCampaignForm';
 
 const BOT_USERNAME = 'MuhiddinShoshiy_sendbot';
 
 export default function CampaignForm() {
+  const [copied, setCopied] = useState(false);
+
   const {
     isEdit,
     isLoading,
@@ -25,7 +28,7 @@ export default function CampaignForm() {
     handleCancel,
   } = useCampaignForm();
 
-  if (isEdit && isLoading) return <div className="p-6"><LoadingState /></div>;
+  if (isEdit && isLoading) return <FullPageLoading />;
 
   return (
     <div className="p-6 max-w-xl">
@@ -42,9 +45,16 @@ export default function CampaignForm() {
           {slug && (
             <div className="flex items-center gap-2 mt-2 p-2 bg-[#0a1510] rounded-lg border border-[#1a2e24]">
               <span className="text-xs text-brand-400 font-mono flex-1 truncate">t.me/{BOT_USERNAME}?start={slug}</span>
-              <button type="button" onClick={() => navigator.clipboard.writeText(`https://t.me/${BOT_USERNAME}?start=${slug}`)}
-                className="text-xs text-[#4a7060] hover:text-brand-400 shrink-0 px-2 py-1 rounded hover:bg-brand-500/10">
-                Copy
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(`https://t.me/${BOT_USERNAME}?start=${slug}`);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+                className="text-xs text-[#4a7060] hover:text-brand-400 shrink-0 px-2 py-1 rounded hover:bg-brand-500/10"
+              >
+                {copied ? 'Copied!' : 'Copy'}
               </button>
             </div>
           )}
