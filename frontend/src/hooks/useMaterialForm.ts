@@ -39,6 +39,10 @@ export function useMaterialForm() {
     }
   }, [existing]);
 
+  // Captured via the bot's /admin mode: content is sent with copy_message, so
+  // editing kind/body/file fields below has no effect on what actually sends.
+  const isCaptured = !!existing?.source_message_id;
+
   const create = useMutation({
     mutationFn: materialApi.create,
     onSuccess: () => {
@@ -101,6 +105,7 @@ export function useMaterialForm() {
     disablePreview,
     setDisablePreview,
     error,
+    isCaptured,
     isPending: create.isPending || update.isPending,
     handleSubmit,
     handleCancel,

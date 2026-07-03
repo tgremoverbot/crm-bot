@@ -17,7 +17,17 @@ export interface Campaign {
   updated_at: string;
 }
 
-export type MaterialKind = 'text' | 'photo' | 'document' | 'video' | 'link';
+export type MaterialKind =
+  | 'text'
+  | 'photo'
+  | 'document'
+  | 'video'
+  | 'voice'
+  | 'audio'
+  | 'video_note'
+  | 'animation'
+  | 'sticker'
+  | 'link';
 export type ParseMode = 'MarkdownV2' | 'HTML' | 'none';
 
 export interface Material {
@@ -30,6 +40,10 @@ export interface Material {
   link_url: string | null;
   parse_mode: ParseMode;
   disable_web_page_preview: boolean;
+  // Set only for messages captured via the bot's /admin mode — sent with
+  // copy_message so they always match the original exactly.
+  source_chat_id: number | null;
+  source_message_id: number | null;
   created_at: string;
   updated_at: string;
 }

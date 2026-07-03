@@ -8,6 +8,11 @@ class MaterialKind(str, enum.Enum):
     PHOTO = "photo"
     DOCUMENT = "document"
     VIDEO = "video"
+    VOICE = "voice"
+    AUDIO = "audio"
+    VIDEO_NOTE = "video_note"
+    ANIMATION = "animation"
+    STICKER = "sticker"
     LINK = "link"
 
 

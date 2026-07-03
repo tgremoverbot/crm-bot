@@ -102,6 +102,19 @@ async def cmd_admin(message: Message, command: CommandObject, state: FSMContext)
     await message.answer("❌ Wrong password.")
 
 
+_KIND_LABELS = {
+    "text": "Text",
+    "photo": "Photo",
+    "video": "Video",
+    "document": "File",
+    "voice": "Voice",
+    "audio": "Audio",
+    "video_note": "Video note",
+    "animation": "GIF",
+    "sticker": "Sticker",
+}
+
+
 def _extract_content(message: Message) -> tuple[MaterialKind, str | None, str | None] | None:
     if message.photo:
         return MaterialKind.PHOTO, message.caption, message.photo[-1].file_id
@@ -109,6 +122,16 @@ def _extract_content(message: Message) -> tuple[MaterialKind, str | None, str | 
         return MaterialKind.VIDEO, message.caption, message.video.file_id
     if message.document:
         return MaterialKind.DOCUMENT, message.caption, message.document.file_id
+    if message.voice:
+        return MaterialKind.VOICE, message.caption, message.voice.file_id
+    if message.audio:
+        return MaterialKind.AUDIO, message.caption, message.audio.file_id
+    if message.video_note:
+        return MaterialKind.VIDEO_NOTE, None, message.video_note.file_id
+    if message.animation:
+        return MaterialKind.ANIMATION, message.caption, message.animation.file_id
+    if message.sticker:
+        return MaterialKind.STICKER, None, message.sticker.file_id
     if message.text:
         return MaterialKind.TEXT, message.text, None
     return None
@@ -134,14 +157,17 @@ async def admin_receive_name(message: Message, state: FSMContext, session: Async
         body=body,
         file_id=file_id,
         parse_mode=ParseMode.NONE,
+        source_chat_id=data.get("source_chat_id"),
+        source_message_id=data.get("source_message_id"),
     )
     await session.commit()
     await state.clear()
 
-    kind_label = {"text": "Text", "photo": "Photo", "video": "Video", "document": "File"}.get(kind.value, kind.value)
+    kind_label = _KIND_LABELS.get(kind.value, kind.value)
     await message.answer(
         f"✅ *{name}* saved as a {kind_label} message\\.\n\n"
-        f"You can now find it in *Messages* in the admin panel and add it to any Auto\\-flow\\.",
+        f"You can now find it in *Messages* in the admin panel and add it to any Auto\\-flow\\. "
+        f"It'll be sent exactly as you sent it just now.",
         parse_mode="MarkdownV2",
     )
 
@@ -150,14 +176,23 @@ async def admin_receive_name(message: Message, state: FSMContext, session: Async
 async def admin_receive_content(message: Message, state: FSMContext) -> None:
     content = _extract_content(message)
     if content is None:
-        await message.answer("⚠️ Unsupported type. Send a photo, video, document, or text message.")
+        await message.answer(
+            "⚠️ Unsupported type. Send a photo, video, voice note, audio, "
+            "video note, GIF, sticker, document, or text message."
+        )
         return
 
     kind, body, file_id = content
     await state.set_state(SaveMessage.waiting_for_name)
-    await state.update_data(kind=kind.value, body=body, file_id=file_id)
+    await state.update_data(
+        kind=kind.value,
+        body=body,
+        file_id=file_id,
+        source_chat_id=message.chat.id,
+        source_message_id=message.message_id,
+    )
 
-    kind_label = {"text": "Text", "photo": "Photo", "video": "Video", "document": "File"}.get(kind.value, kind.value)
+    kind_label = _KIND_LABELS.get(kind.value, kind.value)
     await message.answer(
         f"Got it — *{kind_label}* message\\.\n\nWhat do you want to call this message? "
         f"\\(e\\.g\\. _Welcome_, _Week 1 lesson_\\)",

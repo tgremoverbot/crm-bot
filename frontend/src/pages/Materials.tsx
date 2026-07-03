@@ -15,6 +15,11 @@ const kindVariant: Record<MaterialKind, 'blue' | 'green' | 'yellow' | 'gray'> = 
   text: 'gray',
   photo: 'blue',
   video: 'yellow',
+  voice: 'yellow',
+  audio: 'yellow',
+  video_note: 'yellow',
+  animation: 'blue',
+  sticker: 'blue',
   document: 'green',
   link: 'blue',
 };
@@ -23,6 +28,11 @@ const kindLabel: Record<MaterialKind, string> = {
   text: 'Text',
   photo: 'Photo',
   video: 'Video',
+  voice: 'Voice note',
+  audio: 'Audio',
+  video_note: 'Video note',
+  animation: 'GIF',
+  sticker: 'Sticker',
   document: 'File',
   link: 'Link',
 };

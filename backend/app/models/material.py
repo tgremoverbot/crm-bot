@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Enum, String, Text
+from sqlalchemy import BigInteger, Boolean, Enum, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -20,6 +20,11 @@ class Material(UuidPkMixin, TimestampMixin, Base):
     file_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
     file_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     link_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    # Origin of a message captured via the bot's /admin mode. When set, the
+    # message is resent with copy_message so it always matches the original
+    # byte-for-byte (formatting, captions, media) regardless of MaterialKind.
+    source_chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    source_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     parse_mode: Mapped[ParseMode] = mapped_column(
         Enum(ParseMode, name="parse_mode", native_enum=False, length=16),
         nullable=False,

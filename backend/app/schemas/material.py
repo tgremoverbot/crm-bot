@@ -42,5 +42,9 @@ class MaterialOut(BaseModel):
     link_url: str | None
     parse_mode: ParseMode
     disable_web_page_preview: bool
+    # Set only for messages captured via the bot's /admin mode. Read-only —
+    # there's no API field to set these; they come solely from Telegram capture.
+    source_chat_id: int | None
+    source_message_id: int | None
     created_at: datetime
     updated_at: datetime
