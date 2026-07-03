@@ -5,6 +5,8 @@ interface Props {
   onConfirm: () => void;
   onCancel: () => void;
   danger?: boolean;
+  error?: string | null;
+  isPending?: boolean;
 }
 
 export default function ConfirmModal({
@@ -14,21 +16,25 @@ export default function ConfirmModal({
   onConfirm,
   onCancel,
   danger = false,
+  error,
+  isPending = false,
 }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="card p-6 w-full max-w-sm mx-4">
         <h2 className="text-base font-semibold text-[#dff5ea] mb-2">{title}</h2>
         <p className="text-sm text-[#8aab96] mb-6">{message}</p>
+        {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
         <div className="flex gap-3 justify-end">
-          <button onClick={onCancel} className="btn-secondary text-sm">
+          <button onClick={onCancel} className="btn-secondary text-sm" disabled={isPending}>
             Cancel
           </button>
           <button
             onClick={onConfirm}
             className={danger ? 'btn-danger text-sm' : 'btn-primary text-sm'}
+            disabled={isPending}
           >
-            {confirmLabel}
+            {isPending ? 'Working…' : confirmLabel}
           </button>
         </div>
       </div>

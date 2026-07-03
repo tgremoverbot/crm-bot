@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin, get_db
@@ -59,3 +60,11 @@ async def delete_material(
     if not material:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Material not found")
     await session.delete(material)
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This message is used in an auto-flow, broadcast, or scheduled "
+            "message and can't be deleted. Remove it from those first.",
+        ) from exc

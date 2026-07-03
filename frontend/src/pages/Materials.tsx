@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { materialApi } from '../api/materials';
+import { ApiError } from '../api/client';
 import PageHeader from '../components/PageHeader';
 import LoadingState from '../components/LoadingState';
 import ErrorState from '../components/ErrorState';
@@ -40,6 +41,7 @@ const kindLabel: Record<MaterialKind, string> = {
 export default function Materials() {
   const qc = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['materials'],
@@ -48,8 +50,20 @@ export default function Materials() {
 
   const remove = useMutation({
     mutationFn: materialApi.remove,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['materials'] }); setDeleteId(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['materials'] });
+      setDeleteId(null);
+      setDeleteError(null);
+    },
+    onError: (err) => {
+      setDeleteError(err instanceof ApiError ? err.message : 'Failed to delete message.');
+    },
   });
+
+  function requestDelete(id: string) {
+    setDeleteError(null);
+    setDeleteId(id);
+  }
 
   return (
     <div className="p-6">
@@ -98,7 +112,7 @@ export default function Materials() {
                       <Link to={`/materials/${m.id}/edit`} className="p-1.5 rounded hover:bg-[#1a2e24] text-[#4a7060] hover:text-brand-400 transition-colors">
                         <Pencil size={14} />
                       </Link>
-                      <button onClick={() => setDeleteId(m.id)} className="p-1.5 rounded hover:bg-red-900/20 text-[#4a7060] hover:text-red-400 transition-colors">
+                      <button onClick={() => requestDelete(m.id)} className="p-1.5 rounded hover:bg-red-900/20 text-[#4a7060] hover:text-red-400 transition-colors">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -116,8 +130,10 @@ export default function Materials() {
           message="This will permanently delete the message."
           confirmLabel="Delete"
           danger
+          error={deleteError}
+          isPending={remove.isPending}
           onConfirm={() => remove.mutate(deleteId)}
-          onCancel={() => setDeleteId(null)}
+          onCancel={() => { setDeleteId(null); setDeleteError(null); }}
         />
       )}
     </div>
