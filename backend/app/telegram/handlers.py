@@ -4,7 +4,7 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -19,11 +19,6 @@ _admin_sessions: set[int] = set()
 
 class SaveMessage(StatesGroup):
     waiting_for_name = State()
-
-_WELCOME = (
-    "Assalomu alaykum! 👋\n\n"
-    "Arabic tilini o'rganishga xush kelibsiz."
-)
 
 _STOP_TEXT = (
     "Siz ro'yxatdan chiqdingiz. Qaytishingizni istalgan vaqt kutamiz! 🤝\n"
@@ -50,8 +45,6 @@ async def cmd_start(
         language_code=tg.language_code,
         campaign_slug=payload or None,
     )
-    if not payload:
-        await message.answer(_WELCOME, reply_markup=ReplyKeyboardRemove())
 
     # Flush any 0-delay steps immediately, whether enrollment came from a
     # campaign's default auto-flow or the organic-start fallback auto-flow.
