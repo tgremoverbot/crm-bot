@@ -8,10 +8,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import MaterialKind, ParseMode
 from app.models.material import Material
+from app.models.sequence import Sequence, SequenceStep
 
 
 async def get_by_id(session: AsyncSession, material_id: uuid.UUID) -> Material | None:
     return await session.get(Material, material_id)
+
+
+async def active_flow_names_using(
+    session: AsyncSession, material_id: uuid.UUID
+) -> list[str]:
+    """Names of *active* auto-flows (sequences) that reference this material.
+
+    A material is only undeletable when it's used by a step belonging to an
+    active sequence. Steps of inactive sequences, broadcasts, and scheduled
+    messages are historical usage and do not block deletion.
+    """
+    stmt = (
+        select(Sequence.name)
+        .join(SequenceStep, SequenceStep.sequence_id == Sequence.id)
+        .where(
+            SequenceStep.material_id == material_id,
+            Sequence.is_active.is_(True),
+        )
+        .distinct()
+    )
+    return list((await session.execute(stmt)).scalars().all())
 
 
 async def list_materials(session: AsyncSession) -> Sequence[Material]:

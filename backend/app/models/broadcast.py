@@ -41,10 +41,10 @@ class Broadcast(UuidPkMixin, TimestampMixin, Base):
     __tablename__ = "broadcasts"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    material_id: Mapped[uuid.UUID] = mapped_column(
+    material_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(),
-        ForeignKey("materials.id", ondelete="RESTRICT"),
-        nullable=False,
+        ForeignKey("materials.id", ondelete="SET NULL"),
+        nullable=True,
     )
     segment_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(),

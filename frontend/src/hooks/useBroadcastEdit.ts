@@ -31,7 +31,7 @@ export function useBroadcastEdit() {
   useEffect(() => {
     if (bc) {
       setName(bc.name);
-      setMaterialId(bc.material_id);
+      setMaterialId(bc.material_id ?? '');
       setScheduledAt(bc.scheduled_at ? new Date(bc.scheduled_at).toISOString().slice(0, 16) : '');
     }
   }, [bc]);

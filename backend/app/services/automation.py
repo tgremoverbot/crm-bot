@@ -51,6 +51,12 @@ async def enroll_user_in_sequence(
 
     messages: list[ScheduledMessage] = []
     for step in steps:
+        # A step's material_id becomes NULL if its message was deleted while the
+        # sequence was inactive. Skip such orphaned steps entirely — there's
+        # nothing to schedule and the FK would reject a NULL-material message.
+        if step.material_id is None:
+            continue
+
         key = f"seq:{sequence.id}:step:{step.id}:user:{user.id}"
         existing_msg = existing_by_key.get(key)
 

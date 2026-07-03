@@ -41,7 +41,7 @@ class SequenceStepOut(BaseModel):
     sequence_id: UUID
     position: int
     delay_minutes: int
-    material_id: UUID
+    material_id: UUID | None
     created_at: datetime
     updated_at: datetime
 

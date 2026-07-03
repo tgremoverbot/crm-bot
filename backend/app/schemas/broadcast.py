@@ -32,7 +32,7 @@ class BroadcastOut(BaseModel):
 
     id: UUID
     name: str
-    material_id: UUID
+    material_id: UUID | None
     segment_id: UUID | None
     status: BroadcastStatus
     scheduled_at: datetime | None

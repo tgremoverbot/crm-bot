@@ -61,8 +61,10 @@ export default function SequenceForm() {
         onRemove: () => removeDraftStep(i),
       }));
 
-  const materialName = (materialId: string) =>
-    materials?.find((m) => m.id === materialId)?.name ?? materialId;
+  const materialName = (materialId: string | null) => {
+    if (!materialId) return 'Message deleted';
+    return materials?.find((m) => m.id === materialId)?.name ?? materialId;
+  };
 
   return (
     <div className="p-6 max-w-2xl">

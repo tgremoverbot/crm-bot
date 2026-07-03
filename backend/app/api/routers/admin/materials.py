@@ -59,12 +59,37 @@ async def delete_material(
     material = await material_repo.get_by_id(session, material_id)
     if not material:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Material not found")
+
+    # Proactive guard: block deletion only when the message is used by a step of
+    # an *active* auto-flow. Historical usage (inactive flows, broadcasts,
+    # scheduled messages) no longer blocks deletion — those FKs are SET NULL.
+    active_flows = await material_repo.active_flow_names_using(session, material_id)
+    if active_flows:
+        if len(active_flows) == 1:
+            detail = (
+                f'This message is used in the active auto-flow '
+                f'"{active_flows[0]}" and can\'t be deleted. Remove it '
+                f'from that flow (or deactivate the flow) first.'
+            )
+        else:
+            names = ", ".join(f'"{n}"' for n in active_flows)
+            detail = (
+                f"This message is used in active auto-flows ({names}) and can't "
+                f"be deleted. Remove it from those flows (or deactivate them) "
+                f"first."
+            )
+        raise HTTPException(status.HTTP_409_CONFLICT, detail)
+
     await session.delete(material)
     try:
+        # Flush inside the handler so a constraint violation surfaces here as a
+        # 409 rather than silently rolling back in get_db's post-yield commit.
+        # The active-flow guard above handles the common case with a precise
+        # message; this remains as a defensive fallback.
         await session.flush()
     except IntegrityError as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "This message is used in an auto-flow, broadcast, or scheduled "
-            "message and can't be deleted. Remove it from those first.",
+            "This message is still referenced and can't be deleted. Remove it "
+            "from any auto-flow it's used in first.",
         ) from exc

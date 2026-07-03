@@ -47,8 +47,14 @@ async def process_due_messages(
             result["skipped"] += 1
             continue
 
-        material = await material_repo.get_by_id(session, msg.material_id)
+        material = (
+            None
+            if msg.material_id is None
+            else await material_repo.get_by_id(session, msg.material_id)
+        )
         if material is None:
+            # material_id is NULL (its message was deleted) or the row is gone —
+            # either way there's nothing to send, so fail terminally.
             await scheduled_repo.mark_failed(
                 session, msg, error="Material not found", terminal=True
             )
@@ -127,7 +133,11 @@ async def flush_user(
         if user is None or user.is_blocked:
             await scheduled_repo.cancel(session, msg)
             continue
-        material = await material_repo.get_by_id(session, msg.material_id)
+        material = (
+            None
+            if msg.material_id is None
+            else await material_repo.get_by_id(session, msg.material_id)
+        )
         if material is None:
             await scheduled_repo.mark_failed(session, msg, error="Material not found", terminal=True)
             continue
@@ -155,7 +165,11 @@ async def process_due_broadcasts(session: AsyncSession, bot: Bot) -> dict:
         bc.started_at = now
         await session.flush()
 
-        material = await material_repo.get_by_id(session, bc.material_id)
+        material = (
+            None
+            if bc.material_id is None
+            else await material_repo.get_by_id(session, bc.material_id)
+        )
         if material is None:
             bc.status = BroadcastStatus.FAILED
             bc.finished_at = datetime.now(timezone.utc)

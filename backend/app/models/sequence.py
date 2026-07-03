@@ -56,9 +56,9 @@ class SequenceStep(UuidPkMixin, TimestampMixin, Base):
     delay_minutes: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
-    material_id: Mapped[uuid.UUID] = mapped_column(
+    material_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(),
-        ForeignKey("materials.id", ondelete="RESTRICT"),
-        nullable=False,
+        ForeignKey("materials.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )

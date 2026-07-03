@@ -65,7 +65,7 @@ export interface SequenceStep {
   sequence_id: string;
   position: number;
   delay_minutes: number;
-  material_id: string;
+  material_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -96,7 +96,7 @@ export type BroadcastStatus =
 export interface Broadcast {
   id: string;
   name: string;
-  material_id: string;
+  material_id: string | null;
   segment_id: string | null;
   status: BroadcastStatus;
   scheduled_at: string | null;

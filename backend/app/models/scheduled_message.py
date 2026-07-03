@@ -36,10 +36,10 @@ class ScheduledMessage(UuidPkMixin, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
-    material_id: Mapped[uuid.UUID] = mapped_column(
+    material_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(),
-        ForeignKey("materials.id", ondelete="RESTRICT"),
-        nullable=False,
+        ForeignKey("materials.id", ondelete="SET NULL"),
+        nullable=True,
     )
     status: Mapped[ScheduledMessageStatus] = mapped_column(
         Enum(
