@@ -5,6 +5,15 @@ import { sequenceApi } from '../api/sequences';
 import { materialApi } from '../api/materials';
 import type { TriggerKind } from '../types';
 
+// The trigger selector was removed; every auto-flow starts when someone joins
+// via an invite link it is attached to. Kept as a constant for the create payload.
+const DEFAULT_TRIGGER: TriggerKind = 'campaign_join';
+
+export interface DraftStep {
+  materialId: string;
+  delayMinutes: number;
+}
+
 export function useSequenceForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -13,10 +22,13 @@ export function useSequenceForm() {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [triggerKind, setTriggerKind] = useState<TriggerKind>('campaign_join');
   const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+
+  // Steps being assembled for a brand-new flow (create mode only). Persisted in
+  // one shot when the user presses "Create this flow".
+  const [draftSteps, setDraftSteps] = useState<DraftStep[]>([]);
 
   const [newStepMaterialId, setNewStepMaterialId] = useState('');
   const [newStepDelay, setNewStepDelay] = useState(0);
@@ -43,43 +55,83 @@ export function useSequenceForm() {
     if (existing) {
       setName(existing.name);
       setDescription(existing.description ?? '');
-      setTriggerKind(existing.trigger_kind ?? 'campaign_join');
       setIsActive(existing.is_active);
     }
   }, [existing]);
 
+  // --- create: persist the sequence and all its draft steps in order ---
   const create = useMutation({
-    mutationFn: sequenceApi.create,
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['sequences'] });
-      navigate(`/sequences/${data.id}/edit`);
+    mutationFn: async () => {
+      const seq = await sequenceApi.create({
+        name,
+        description: description || null,
+        trigger_kind: DEFAULT_TRIGGER,
+        is_active: isActive,
+      });
+      try {
+        for (let i = 0; i < draftSteps.length; i++) {
+          await sequenceApi.addStep(seq.id, {
+            position: i + 1,
+            delay_minutes: draftSteps[i].delayMinutes,
+            material_id: draftSteps[i].materialId,
+          });
+        }
+      } catch {
+        // The sequence exists now, so re-submitting would duplicate it. Hand
+        // the user to its edit page (the source of truth) to finish the steps.
+        qc.invalidateQueries({ queryKey: ['sequences'] });
+        navigate(`/sequences/${seq.id}/edit`);
+        throw new Error('partial');
+      }
+      return seq;
     },
-    onError: () => setError('Failed to create sequence.'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sequences'] });
+      navigate('/sequences');
+    },
+    onError: (e) => {
+      if ((e as Error).message === 'partial') {
+        setError('Flow created, but some steps failed to save. Finish adding them here.');
+      } else {
+        setError('Failed to create auto-flow.');
+      }
+    },
   });
 
+  // --- edit: save name/description/active ---
   const update = useMutation({
-    mutationFn: (data: Parameters<typeof sequenceApi.update>[1]) => sequenceApi.update(id!, data),
+    mutationFn: () =>
+      sequenceApi.update(id!, {
+        name,
+        description: description || null,
+        is_active: isActive,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sequences'] });
       qc.invalidateQueries({ queryKey: ['sequence', id] });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     },
-    onError: () => setError('Failed to update sequence.'),
+    onError: () => setError('Failed to save changes.'),
   });
 
+  // --- edit: add a step to an existing flow (persists immediately) ---
   const addStep = useMutation({
-    mutationFn: (targetId: string) =>
-      sequenceApi.addStep(targetId, {
-        position: (steps?.length ?? 0) + 1,
+    mutationFn: () => {
+      const nextPosition =
+        (steps && steps.length ? Math.max(...steps.map((s) => s.position)) : 0) + 1;
+      return sequenceApi.addStep(id!, {
+        position: nextPosition,
         delay_minutes: newStepDelay,
         material_id: newStepMaterialId,
-      }),
-    onSuccess: (_data, targetId) => {
-      qc.invalidateQueries({ queryKey: ['sequence-steps', targetId] });
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sequence-steps', id] });
       setNewStepMaterialId('');
       setNewStepDelay(0);
     },
+    onError: () => setError('Failed to add step.'),
   });
 
   const deleteStep = useMutation({
@@ -90,42 +142,36 @@ export function useSequenceForm() {
     },
   });
 
+  function handleAddStep() {
+    setError('');
+    if (!newStepMaterialId) return;
+    if (isEdit) {
+      addStep.mutate();
+      return;
+    }
+    setDraftSteps((prev) => [
+      ...prev,
+      { materialId: newStepMaterialId, delayMinutes: newStepDelay },
+    ]);
+    setNewStepMaterialId('');
+    setNewStepDelay(0);
+  }
+
+  function removeDraftStep(index: number) {
+    setDraftSteps((prev) => prev.filter((_, i) => i !== index));
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    const payload = {
-      name,
-      description: description || null,
-      trigger_kind: triggerKind,
-      is_active: isActive,
-    };
-    if (isEdit) {
-      update.mutate(payload);
-    } else {
-      create.mutate(payload);
-    }
-  }
-
-  async function handleAddStep() {
-    if (isEdit) {
-      addStep.mutate(id!);
-      return;
-    }
-    setError('');
     if (!name.trim()) {
-      setError('Enter a name first.');
+      setError('Enter a name.');
       return;
     }
-    try {
-      const created = await create.mutateAsync({
-        name,
-        description: description || null,
-        trigger_kind: triggerKind,
-        is_active: isActive,
-      });
-      addStep.mutate(created.id);
-    } catch {
-      setError('Failed to create sequence.');
+    if (isEdit) {
+      update.mutate();
+    } else {
+      create.mutate();
     }
   }
 
@@ -145,13 +191,13 @@ export function useSequenceForm() {
     setName,
     description,
     setDescription,
-    triggerKind,
-    setTriggerKind,
     isActive,
     setIsActive,
     error,
     saved,
     steps,
+    draftSteps,
+    removeDraftStep,
     newStepMaterialId,
     setNewStepMaterialId,
     newStepDelay,
@@ -160,7 +206,7 @@ export function useSequenceForm() {
     setDeleteStepId,
     materials,
     isPending: create.isPending || update.isPending,
-    isAddStepPending: addStep.isPending || create.isPending,
+    isAddStepPending: addStep.isPending,
     handleSubmit,
     handleAddStep,
     handleDeleteStep,
