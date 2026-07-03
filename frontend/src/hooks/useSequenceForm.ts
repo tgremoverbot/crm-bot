@@ -69,14 +69,14 @@ export function useSequenceForm() {
   });
 
   const addStep = useMutation({
-    mutationFn: () =>
-      sequenceApi.addStep(id!, {
+    mutationFn: (targetId: string) =>
+      sequenceApi.addStep(targetId, {
         position: (steps?.length ?? 0) + 1,
         delay_minutes: newStepDelay,
         material_id: newStepMaterialId,
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sequence-steps', id] });
+    onSuccess: (_data, targetId) => {
+      qc.invalidateQueries({ queryKey: ['sequence-steps', targetId] });
       setNewStepMaterialId('');
       setNewStepDelay(0);
     },
@@ -106,8 +106,27 @@ export function useSequenceForm() {
     }
   }
 
-  function handleAddStep() {
-    addStep.mutate();
+  async function handleAddStep() {
+    if (isEdit) {
+      addStep.mutate(id!);
+      return;
+    }
+    setError('');
+    if (!name.trim()) {
+      setError('Enter a name first.');
+      return;
+    }
+    try {
+      const created = await create.mutateAsync({
+        name,
+        description: description || null,
+        trigger_kind: triggerKind,
+        is_active: isActive,
+      });
+      addStep.mutate(created.id);
+    } catch {
+      setError('Failed to create sequence.');
+    }
   }
 
   function handleDeleteStep(stepId: string) {
@@ -141,7 +160,7 @@ export function useSequenceForm() {
     setDeleteStepId,
     materials,
     isPending: create.isPending || update.isPending,
-    isAddStepPending: addStep.isPending,
+    isAddStepPending: addStep.isPending || create.isPending,
     handleSubmit,
     handleAddStep,
     handleDeleteStep,
