@@ -46,3 +46,7 @@ def reset() -> None:
     global _bot, _dp
     _bot = None
     _dp = None
+    # `router` is a module-level singleton that remembers the Dispatcher it was
+    # attached to, and aiogram refuses to attach it twice. Detach it so the
+    # next get_dispatcher() can include it again.
+    router._parent_router = None

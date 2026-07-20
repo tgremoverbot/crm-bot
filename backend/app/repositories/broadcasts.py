@@ -60,6 +60,7 @@ async def create(
     segment_id: uuid.UUID | None = None,
     scheduled_at: datetime | None = None,
     created_by: uuid.UUID | None = None,
+    notify_chat_id: int | None = None,
 ) -> Broadcast:
     bc = Broadcast(
         name=name,
@@ -67,6 +68,7 @@ async def create(
         segment_id=segment_id,
         scheduled_at=scheduled_at,
         created_by=created_by,
+        notify_chat_id=notify_chat_id,
     )
     session.add(bc)
     await session.flush()

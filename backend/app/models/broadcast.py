@@ -80,6 +80,11 @@ class Broadcast(UuidPkMixin, TimestampMixin, Base):
         ForeignKey("admin_users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Telegram chat to report the delivery result back to. Set for broadcasts
+    # started from the bot's admin mode, so whoever pressed "Send to everyone"
+    # gets a success/failure summary once sending finishes — including when the
+    # send is picked up later by the scheduler rather than inline.
+    notify_chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
 
 class BroadcastDelivery(UuidPkMixin, CreatedAtMixin, Base):
